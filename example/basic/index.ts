@@ -1,4 +1,4 @@
-import { Connection, Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+import { Connection, Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, sendAndConfirmTransaction, PublicKey } from '@solana/web3.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -8,7 +8,7 @@ const connection = new Connection(process.env.HELIUS_RPC_URL!);
 
 (async () => {
     console.log("Test TX depuis:", payer.publicKey.toBase58());
-    const recipient = "DESTINATION_WALLET_HERE"; // Mets l'adresse d'un de tes autres wallets
+    const recipient = new PublicKey("3M1RVomWfJcvKLt9yNPPVsHVATi1x9fPzz9n6DiWA4L7"); // <-- Mets ici une vraie adresse Solana
     const tx = new Transaction().add(
         SystemProgram.transfer({
             fromPubkey: payer.publicKey,
