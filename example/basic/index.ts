@@ -16,7 +16,7 @@ import {
 } from "../util.ts";
 
 dotenv.config();
-
+console.log("Adresse utilisée par le script :", keypair.publicKey.toBase58());
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KEYS_FOLDER = join(__dirname, ".keys");
 const SLIPPAGE_BASIS_POINTS = 100n;
