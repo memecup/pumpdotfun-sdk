@@ -1,95 +1,50 @@
-import dotenv from "dotenv";
-import { Keypair, Connection } from "@solana/web3.js";
-// 👉 Adapter si besoin { PumpFun } ou { PumpFunSDK }
-import { PumpFunSDK } from "../../src"; // ou { PumpFun }
-import fs from "fs";
+import { Connection, PublicKey } from "@solana/web3.js";
 
-// DEBUG dès le tout début
-console.log("=== DEBUT SCRIPT ===");
+// REMPLACE par ton endpoint (Helius conseillé)
+const RPC_URL = process.env.HELIUS_RPC_URL || "https://api.mainnet-beta.solana.com";
+const connection = new Connection(RPC_URL, "confirmed");
 
-// Load .env (utile en dev)
-dotenv.config();
+// Adresse à scanner (le wallet qui a mint les tokens)
+const CREATOR_PUBKEY = "3M1RVomWfJcvKLt9yNPPVsHVATi1x9fPzz9n6DiWA4L7"; // <-- à changer si besoin
 
-// --- Checks ---
-if (!process.env.PRIVATE_KEY) throw new Error('PRIVATE_KEY manquant dans .env');
-if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL manquant dans .env');
+async function findCreatedMints(creatorAddress) {
+  const creator = new PublicKey(creatorAddress);
+  // Scan des transactions du wallet (attention, limité à 1 000 max par requête, plus pour Helius)
+  const sigs = await connection.getSignaturesForAddress(creator, { limit: 1000 });
 
-// --- Wallet & Connection
-const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
-const creator = Keypair.fromSecretKey(secretKey);
-console.log("PRIVATE_KEY (public):", creator.publicKey.toBase58());
+  let foundMints = [];
+  for (const sig of sigs) {
+    // Récupérer la transaction complète
+    const tx = await connection.getTransaction(sig.signature, { maxSupportedTransactionVersion: 0 });
+    if (!tx) continue;
 
-const mint = Keypair.generate();
-console.log("Adresse du mint créé :", mint.publicKey.toBase58());
-
-const connection = new Connection(process.env.HELIUS_RPC_URL!, "confirmed");
-
-// --- Image optionnelle
-const imagePath = "example/basic/logo.png"; // Mets logo.png ici si tu veux un mint avec image
-let fileBuffer: Buffer | undefined = undefined;
-if (fs.existsSync(imagePath)) {
-  fileBuffer = fs.readFileSync(imagePath);
-  console.log("✅ Image trouvée pour le mint !");
-} else {
-  console.log("❌ Pas d'image trouvée, mint SANS image !");
-}
-
-// --- Instanciation SDK ---
-const sdk = new PumpFunSDK({
-  connection,
-  payer: creator,
-});
-
-// --- Paramètres Token ---
-const meta: any = {
-  name: "UniverseToken",
-  symbol: "UNIV",
-  description: "A fun universe-themed test token on Pump.fun! 🚀",
-};
-// Gestion de l'image
-if (fileBuffer) {
-  try {
-    // Node >= 18
-    meta.file = new File([fileBuffer], "logo.png", { type: "image/png" });
-  } catch {
-    // Node < 18, installer fetch-blob
-    const { File } = require("fetch-blob");
-    meta.file = new File([fileBuffer], "logo.png", { type: "image/png" });
+    // Parcourir les instructions pour chercher des mints
+    for (const ix of tx.transaction.message.instructions) {
+      // Vérifie si l'instruction est un mint SPL (Token program)
+      if (
+        ix.programId.toBase58() === "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" && // SPL Token
+        ix.data &&
+        (ix.data.startsWith("6") || ix.data.length === 2) // mintTo or InitializeMint
+      ) {
+        // Généralement, le mint créé est dans les keys
+        const mintAccount = tx.transaction.message.accountKeys[ix.accounts[0]].toBase58();
+        foundMints.push(mintAccount);
+      }
+    }
   }
-}
 
-const buyAmountSol = 0.005; // à acheter direct après le mint
-const slippage = 500n;
+  // Suppression des doublons
+  foundMints = [...new Set(foundMints)];
+  return foundMints;
+}
 
 (async () => {
-  try {
-    console.log("⏳ Mint + buy du token...");
-    // Si createAndBuy existe
-    const result = await sdk.createAndBuy(
-      creator,
-      mint,
-      meta,
-      BigInt(buyAmountSol * 1e9),
-      slippage
-    );
-    // Gestion du retour
-    if (result && result.success) {
-      console.log("🚀 Mint + buy réussi ! Résultat :", result);
-      console.log(`Lien Pump.fun : https://pump.fun/${mint.publicKey.toBase58()}`);
-    } else {
-      // Cas fréquent : buy trop tôt, doit être relancé
-      console.log("❌ Mint fait mais BUY échoué (token pas indexé). Relance le script pour buy dès que pump.fun le permet.");
-      console.log(result);
-    }
-  } catch (err: any) {
-    if (err.message && err.message.includes("is not a function")) {
-      console.error("❌ Problème d'API du SDK : la méthode createAndBuy() n’existe pas !");
-      console.error("Teste à la place sdk.createToken puis sdk.buyToken séparément, OU change PumpFunSDK => PumpFun.");
-    } else {
-      console.error("❌ Erreur dans le flow :", err.message || err);
-    }
+  console.log("Recherche des mints créés par :", CREATOR_PUBKEY);
+  const mints = await findCreatedMints(CREATOR_PUBKEY);
+  if (mints.length) {
+    console.log("Mints trouvés:");
+    mints.forEach(mint => console.log(mint));
+  } else {
+    console.log("Aucun mint trouvé pour ce wallet.");
   }
 })();
-
-// Log aussi dans un fichier (pour Railway/docker/debug)
-fs.writeFileSync("mint_pubkey.txt", mint.publicKey.toBase58());
