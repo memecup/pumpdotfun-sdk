@@ -3,28 +3,25 @@ import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { DEFAULT_DECIMALS, PumpFunSDK } from "pumpdotfun-sdk";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { ... } from "./util.ts";
 import {
   getOrCreateKeypair,
   getSPLBalance,
   printSOLBalance,
-  printSPLBalance,
-} from "./util"; // Ce fichier doit être présent, cf. README
+  printSPLBalance
+} from "./util";
 
 dotenv.config();
 
 const KEYS_FOLDER = __dirname + "/.keys";
 const SLIPPAGE_BASIS_POINTS = 100n;
 
-// ------------------------
-// PROVIDER ANCHOR SOLANA
-// ------------------------
 const getProvider = () => {
   if (!process.env.HELIUS_RPC_URL) {
-    throw new Error("HELIUS_RPC_URL manquant dans .env");
+    throw new Error("Please set HELIUS_RPC_URL in .env file");
   }
-  const connection = new Connection(process.env.HELIUS_RPC_URL);
-  const wallet = new NodeWallet(getOrCreateKeypair(KEYS_FOLDER, "test-account"));
+
+  const connection = new Connection(process.env.HELIUS_RPC_URL || "");
+  const wallet = new NodeWallet(new Keypair());
   return new AnchorProvider(connection, wallet, { commitment: "finalized" });
 };
 
@@ -33,7 +30,7 @@ const createAndBuyToken = async (sdk, testAccount, mint) => {
     name: "TST-7",
     symbol: "TST-7",
     description: "TST-7: This is a test token",
-    filePath: "example/basic/logo.png", // Mets un PNG ici si tu veux une image
+    filePath: "example/basic/random.png", // tu as bien ce fichier dans le dossier
   };
 
   const createResults = await sdk.createAndBuy(
@@ -49,14 +46,62 @@ const createAndBuyToken = async (sdk, testAccount, mint) => {
   );
 
   if (createResults.success) {
-    console.log("✅ Mint + Buy réussi:", `https://pump.fun/${mint.publicKey.toBase58()}`);
+    console.log("Success:", `https://pump.fun/${mint.publicKey.toBase58()}`);
     printSPLBalance(sdk.connection, mint.publicKey, testAccount.publicKey);
   } else {
-    console.log("❌ Create and Buy failed");
+    console.log("Create and Buy failed");
   }
 };
 
-// ... (laisse buyTokens et sellTokens comme dans ton exemple ci-dessus)
+const buyTokens = async (sdk, testAccount, mint) => {
+  const buyResults = await sdk.buy(
+    testAccount,
+    mint.publicKey,
+    BigInt(0.0001 * LAMPORTS_PER_SOL),
+    SLIPPAGE_BASIS_POINTS,
+    {
+      unitLimit: 250000,
+      unitPrice: 250000,
+    }
+  );
+
+  if (buyResults.success) {
+    printSPLBalance(sdk.connection, mint.publicKey, testAccount.publicKey);
+    console.log("Bonding curve after buy", await sdk.getBondingCurveAccount(mint.publicKey));
+  } else {
+    console.log("Buy failed");
+  }
+};
+
+const sellTokens = async (sdk, testAccount, mint) => {
+  const currentSPLBalance = await getSPLBalance(
+    sdk.connection,
+    mint.publicKey,
+    testAccount.publicKey
+  );
+  console.log("currentSPLBalance", currentSPLBalance);
+
+  if (currentSPLBalance) {
+    const sellResults = await sdk.sell(
+      testAccount,
+      mint.publicKey,
+      BigInt(currentSPLBalance * Math.pow(10, DEFAULT_DECIMALS)),
+      SLIPPAGE_BASIS_POINTS,
+      {
+        unitLimit: 250000,
+        unitPrice: 250000,
+      }
+    );
+
+    if (sellResults.success) {
+      await printSOLBalance(sdk.connection, testAccount.publicKey, "Test Account keypair");
+      printSPLBalance(sdk.connection, mint.publicKey, testAccount.publicKey, "After SPL sell all");
+      console.log("Bonding curve after sell", await sdk.getBondingCurveAccount(mint.publicKey));
+    } else {
+      console.log("Sell failed");
+    }
+  }
+};
 
 const main = async () => {
   try {
@@ -70,11 +115,11 @@ const main = async () => {
     await printSOLBalance(connection, testAccount.publicKey, "Test Account keypair");
 
     const globalAccount = await sdk.getGlobalAccount();
-    console.log("Global Pumpfun account :", globalAccount);
+    console.log(globalAccount);
 
     const currentSolBalance = await connection.getBalance(testAccount.publicKey);
     if (currentSolBalance === 0) {
-      console.log("❌ Envoie un peu de SOL à ce wallet test :", testAccount.publicKey.toBase58());
+      console.log("Please send some SOL to the test-account:", testAccount.publicKey.toBase58());
       return;
     }
 
@@ -85,9 +130,8 @@ const main = async () => {
     }
 
     if (bondingCurveAccount) {
-      // Tu peux activer les lignes suivantes pour acheter/vendre ensuite
-      // await buyTokens(sdk, testAccount, mint);
-      // await sellTokens(sdk, testAccount, mint);
+      await buyTokens(sdk, testAccount, mint);
+      await sellTokens(sdk, testAccount, mint);
     }
   } catch (error) {
     console.error("An error occurred:", error);
