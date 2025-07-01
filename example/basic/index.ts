@@ -8,7 +8,7 @@ import {
   getSPLBalance,
   printSOLBalance,
   printSPLBalance
-} from "./util.ts";
+} from "../util.ts";
 
 dotenv.config();
 
