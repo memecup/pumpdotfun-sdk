@@ -4,16 +4,13 @@ import { PumpFunSDK } from "pumpdotfun-sdk";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
-import { dirname, join } from "path";
+import { dirname } from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
-import { Blob } from "fetch-blob";
 
 dotenv.config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SLIPPAGE_BASIS_POINTS = 100n;
-const LOGO_PATH = join(__dirname, "logo.png");
 
 const getProvider = () => {
   if (!process.env.HELIUS_RPC_URL) {
@@ -28,13 +25,10 @@ const getProvider = () => {
 };
 
 const createAndBuyToken = async (sdk, payer, mint) => {
-
-
   const tokenMetadata = {
     name: "TST-7",
     symbol: "TST-7",
-    description: "TST-7: This is a test token",
-  
+    description: "TST-7: This is a test token"
   };
 
   try {
