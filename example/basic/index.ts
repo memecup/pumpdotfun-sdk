@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import { Keypair } from "@solana/web3.js";
 import { PumpFunSDK } from "../../src";
 import fs from "fs";
-import File from "fetch-blob/file.js"; // ✅ la bonne importation
+import { File } from "fetch-blob/file.js";
 
 dotenv.config();
 
