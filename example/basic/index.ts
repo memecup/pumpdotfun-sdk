@@ -6,9 +6,10 @@ import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
-import fetchBlob from "fetch-blob";
-const File = fetchBlob.File;
+import * as fs from "fs";
+import * as fetchBlob from "fetch-blob"; // Trick pour ESM: tout importer
+const { File } = fetchBlob;
+
 import {
   getOrCreateKeypair,
   getSPLBalance,
@@ -16,30 +17,24 @@ import {
   printSPLBalance
 } from "../util.ts";
 
-// Load .env
 dotenv.config();
 
-// Compatible ESM/Node
+// Résout __dirname en mode ESM
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KEYS_FOLDER = join(__dirname, ".keys");
 const SLIPPAGE_BASIS_POINTS = 100n;
 
-// Utilisation de ton wallet Railway
+// --- Wallet depuis Railway ---
+if (!process.env.PRIVATE_KEY) throw new Error('PRIVATE_KEY manquant dans .env');
+if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL manquant dans .env');
+
+const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY));
+const keypair = Keypair.fromSecretKey(secretKey);
+console.log(">>> Adresse Solana (PRIVATE_KEY utilisée) :", keypair.publicKey.toBase58());
+
 const getProvider = () => {
-  if (!process.env.HELIUS_RPC_URL) {
-    throw new Error("Please set HELIUS_RPC_URL in .env file");
-  }
-  if (!process.env.PRIVATE_KEY) {
-    throw new Error("PRIVATE_KEY manquant !");
-  }
   const connection = new Connection(process.env.HELIUS_RPC_URL, "finalized");
-  const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
-  const keypair = Keypair.fromSecretKey(secretKey);
   const wallet = new NodeWallet(keypair);
-
-  // Affiche l’adresse utilisée
-  console.log(">>> Adresse Solana (PRIVATE_KEY utilisée) :", keypair.publicKey.toBase58());
-
   return new AnchorProvider(connection, wallet, { commitment: "finalized" });
 };
 
@@ -49,15 +44,14 @@ const createAndBuyToken = async (sdk: PumpFunSDK, testAccount: Keypair, mint: Ke
     symbol: "TST-7",
     description: "TST-7: This is a test token",
   };
-
-  // Ajout image si dispo
-  const imagePath = "example/basic/logo.png";
+  // Gestion image optionnelle
+  const imagePath = join(__dirname, "logo.png");
   if (fs.existsSync(imagePath)) {
     const fileBuffer = fs.readFileSync(imagePath);
     tokenMetadata.file = new File([fileBuffer], "logo.png", { type: "image/png" });
-    console.log("✅ Image trouvée et ajoutée au mint !");
+    console.log("✅ Image trouvée et injectée dans le mint.");
   } else {
-    console.log("❌ Image non trouvée, mint SANS image.");
+    console.log("❌ Pas d'image trouvée, mint SANS image !");
   }
 
   const createResults = await sdk.createAndBuy(
@@ -137,7 +131,8 @@ const main = async () => {
     const sdk = new PumpFunSDK(provider);
     const connection = provider.connection;
 
-    const testAccount = getOrCreateKeypair(KEYS_FOLDER, "test-account");
+    // Prends bien ton wallet Railway (PRIVATE_KEY)
+    const testAccount = keypair;
     const mint = getOrCreateKeypair(KEYS_FOLDER, "mint");
 
     await printSOLBalance(connection, testAccount.publicKey, "Ton wallet");
