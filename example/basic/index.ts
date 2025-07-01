@@ -7,12 +7,10 @@ const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import {
-  getOrCreateKeypair,
   getSPLBalance,
   printSOLBalance,
   printSPLBalance
 } from "../util.ts";
-
 
 dotenv.config();
 
@@ -28,7 +26,8 @@ const getProvider = () => {
 
   const connection = new Connection(process.env.HELIUS_RPC_URL, "finalized");
 
-  // Utilise le wallet Railway / Railway injecte PRIVATE_KEY dans .env
+  // Utilise TA clé privée du .env (exportée au format array)
+  if (!process.env.PRIVATE_KEY) throw new Error("PRIVATE_KEY manquant dans .env");
   const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
   const keypair = Keypair.fromSecretKey(secretKey);
   const wallet = new NodeWallet(keypair);
@@ -41,7 +40,7 @@ const createAndBuyToken = async (sdk: PumpFunSDK, testAccount: Keypair, mint: Ke
     name: "TST-7",
     symbol: "TST-7",
     description: "TST-7: This is a test token",
-    filePath: "example/basic/logo.png", // vérifie que ce fichier existe
+    filePath: join(__dirname, "logo.png"), // assure-toi que ce fichier existe bien
   };
 
   const createResults = await sdk.createAndBuy(
@@ -57,10 +56,10 @@ const createAndBuyToken = async (sdk: PumpFunSDK, testAccount: Keypair, mint: Ke
   );
 
   if (createResults.success) {
-    console.log("Success:", `https://pump.fun/${mint.publicKey.toBase58()}`);
+    console.log("✅ Success:", `https://pump.fun/${mint.publicKey.toBase58()}`);
     await printSPLBalance(sdk.connection, mint.publicKey, testAccount.publicKey);
   } else {
-    console.log("Create and Buy failed");
+    console.log("❌ Create and Buy failed");
     console.log(createResults);
   }
 };
@@ -121,10 +120,11 @@ const main = async () => {
     const sdk = new PumpFunSDK(provider);
     const connection = provider.connection;
 
-    const testAccount = getOrCreateKeypair(KEYS_FOLDER, "test-account");
-    const mint = getOrCreateKeypair(KEYS_FOLDER, "mint");
+    // Ici, c’est TA clé privée qui sert pour tout
+    const testAccount = provider.wallet.payer as Keypair;
+    const mint = Keypair.generate(); // Nouveau token à chaque run
 
-    await printSOLBalance(connection, testAccount.publicKey, "Test Account keypair");
+    await printSOLBalance(connection, testAccount.publicKey, "Ton wallet");
 
     const globalAccount = await sdk.getGlobalAccount();
     console.log(globalAccount);
