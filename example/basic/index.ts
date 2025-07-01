@@ -1,10 +1,13 @@
 import dotenv from "dotenv";
 import { Keypair, Connection } from "@solana/web3.js";
-// 👉 Adapte ici selon l'export réel du SDK (PumpFunSDK OU PumpFun)
+// 👉 Adapter si besoin { PumpFun } ou { PumpFunSDK }
 import { PumpFunSDK } from "../../src"; // ou { PumpFun }
 import fs from "fs";
 
-// Load .env en dev (inutile sur Railway mais safe)
+// DEBUG dès le tout début
+console.log("=== DEBUT SCRIPT ===");
+
+// Load .env (utile en dev)
 dotenv.config();
 
 // --- Checks ---
@@ -14,8 +17,9 @@ if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL manquant dans .
 // --- Wallet & Connection
 const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
 const creator = Keypair.fromSecretKey(secretKey);
+console.log("PRIVATE_KEY (public):", creator.publicKey.toBase58());
+
 const mint = Keypair.generate();
-console.log("PRIVATE_KEY:", creator.publicKey.toBase58());
 console.log("Adresse du mint créé :", mint.publicKey.toBase58());
 
 const connection = new Connection(process.env.HELIUS_RPC_URL!, "confirmed");
@@ -31,7 +35,6 @@ if (fs.existsSync(imagePath)) {
 }
 
 // --- Instanciation SDK ---
-// (Si tu as { PumpFun } à l'export, remplace par PumpFun)
 const sdk = new PumpFunSDK({
   connection,
   payer: creator,
@@ -46,10 +49,10 @@ const meta: any = {
 // Gestion de l'image
 if (fileBuffer) {
   try {
-    // Pour Node >= 18
+    // Node >= 18
     meta.file = new File([fileBuffer], "logo.png", { type: "image/png" });
   } catch {
-    // Pour Node < 18, installer fetch-blob : npm install fetch-blob
+    // Node < 18, installer fetch-blob
     const { File } = require("fetch-blob");
     meta.file = new File([fileBuffer], "logo.png", { type: "image/png" });
   }
@@ -79,7 +82,6 @@ const slippage = 500n;
       console.log(result);
     }
   } catch (err: any) {
-    // Si createAndBuy n'existe pas, erreur claire
     if (err.message && err.message.includes("is not a function")) {
       console.error("❌ Problème d'API du SDK : la méthode createAndBuy() n’existe pas !");
       console.error("Teste à la place sdk.createToken puis sdk.buyToken séparément, OU change PumpFunSDK => PumpFun.");
@@ -88,3 +90,6 @@ const slippage = 500n;
     }
   }
 })();
+
+// Log aussi dans un fichier (pour Railway/docker/debug)
+fs.writeFileSync("mint_pubkey.txt", mint.publicKey.toBase58());
