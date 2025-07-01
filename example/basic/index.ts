@@ -7,7 +7,7 @@ const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import FetchBlob from "fetch-blob"; // Import direct, PAS 'default' ni named!
+import { Blob } from "fetch-blob"; // 👈 ICI !
 
 dotenv.config();
 
@@ -31,7 +31,7 @@ const createAndBuyToken = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair)
   let logoFile = undefined;
   if (fs.existsSync(LOGO_PATH)) {
     const buffer = fs.readFileSync(LOGO_PATH);
-    logoFile = new FetchBlob([buffer], { type: "image/png" }); // ICI : FetchBlob !
+    logoFile = new Blob([buffer], { type: "image/png" }); // 👈 AVEC import { Blob } !
     console.log("✅ logo.png chargé pour le mint !");
   } else {
     console.warn("❌ Aucun logo trouvé, le mint sera sans image !");
@@ -97,44 +97,4 @@ const autoRetryBuy = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair) => {
       if (buyRes.success) {
         bought = true;
         console.log("✅ Buy réussi après retry !", buyRes);
-        console.log("Lien Pump.fun :", `https://pump.fun/${mint.publicKey.toBase58()}`);
-        break;
-      } else {
-        console.log("Buy failed, retrying...", buyRes.error || buyRes);
-      }
-    } catch (e) {
-      console.log("Buy error, retrying...", e);
-    }
-  }
-  if (!bought) {
-    console.warn("⚠️ Impossible de buy après 15 tentatives. Attends que Pump.fun indexe le token et relance !");
-  }
-};
-
-const main = async () => {
-  try {
-    const provider = getProvider();
-    const sdk = new PumpFunSDK(provider);
-    const connection = provider.connection;
-    const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
-    const payer = Keypair.fromSecretKey(secretKey);
-    const mint = Keypair.generate();
-
-    // Affiche solde du wallet principal
-    const sol = await connection.getBalance(payer.publicKey);
-    console.log(`Ton wallet ${payer.publicKey.toBase58()}: ${sol / LAMPORTS_PER_SOL} SOL`);
-    if (sol === 0) {
-      console.log("Please send some SOL to le wallet:", payer.publicKey.toBase58());
-      return;
-    }
-
-    const globalAccount = await sdk.getGlobalAccount();
-    console.log(globalAccount);
-
-    await createAndBuyToken(sdk, payer, mint);
-  } catch (error) {
-    console.error("An error occurred:", error);
-  }
-};
-
-main();
+        c
