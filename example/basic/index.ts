@@ -1,13 +1,13 @@
 import dotenv from "dotenv";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { DEFAULT_DECIMALS, PumpFunSDK } from "pumpdotfun-sdk";
+import { PumpFunSDK } from "pumpdotfun-sdk";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { Blob } from "fetch-blob"; // 👈 ICI !
+import { Blob } from "fetch-blob";
 
 dotenv.config();
 
@@ -27,22 +27,22 @@ const getProvider = () => {
   return new AnchorProvider(connection, wallet, { commitment: "finalized" });
 };
 
-const createAndBuyToken = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair) => {
+const createAndBuyToken = async (sdk, payer, mint) => {
   let logoFile = undefined;
   if (fs.existsSync(LOGO_PATH)) {
     const buffer = fs.readFileSync(LOGO_PATH);
-    logoFile = new Blob([buffer], { type: "image/png" }); // 👈 AVEC import { Blob } !
+    logoFile = new Blob([buffer], { type: "image/png" });
     console.log("✅ logo.png chargé pour le mint !");
   } else {
     console.warn("❌ Aucun logo trouvé, le mint sera sans image !");
   }
 
-  const tokenMetadata: any = {
+  const tokenMetadata = {
     name: "TST-7",
     symbol: "TST-7",
     description: "TST-7: This is a test token",
+    ...(logoFile && { file: logoFile }),
   };
-  if (logoFile) tokenMetadata.file = logoFile;
 
   try {
     console.log("⏳ Mint du token...");
@@ -71,18 +71,18 @@ const createAndBuyToken = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair)
         console.error("Erreur inattendue dans le flow :", res.error || res);
       }
     }
-  } catch (e: any) {
+  } catch (e) {
     console.error("Erreur pendant le mint :", e.message || e);
   }
 };
 
-const autoRetryBuy = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair) => {
+const autoRetryBuy = async (sdk, payer, mint) => {
   let bought = false;
   let tryCount = 0;
   while (!bought && tryCount < 15) {
     tryCount++;
     console.log(`⏳ [Retry #${tryCount}] Tentative de buy...`);
-    await new Promise(res => setTimeout(res, 12000)); // 12 secondes
+    await new Promise(res => setTimeout(res, 12000));
     try {
       const buyRes = await sdk.buy(
         payer,
