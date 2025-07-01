@@ -20,10 +20,10 @@ const mint = Keypair.generate();
   });
 
   const meta = {
-    name: "Univers",
+    name: "UniversToken",
     symbol: "UNV",
     description: "Token test univers",
-    image: "https://ipfs.io/ipfs/bafkreidgko6n7r2va2zjbzp4qaj6ybb4vrxafukknkl7qcnbyhn7pxejty", // <-- Image IPFS Pinata
+    uri: "https://gateway.pinata.cloud/ipfs/bafkreidgko6n7r2va2zjbzp4qaj6ybb4vrxafukknkl7qcnbyhn7pxejty",
   };
 
   const buyAmountSol = 0.005;
