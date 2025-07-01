@@ -1,104 +1,87 @@
 import dotenv from "dotenv";
-import { Keypair, Connection, PublicKey } from "@solana/web3.js";
-import { PumpFunSDK } from "../../src"; // adapte si le chemin change
+import { Keypair, Connection } from "@solana/web3.js";
+// 👉 Adapte ici selon l'export réel du SDK (PumpFunSDK OU PumpFun)
+import { PumpFunSDK } from "../../src"; // ou { PumpFun }
 import fs from "fs";
 
-// ----- Chargement .env (inutile sur Railway, mais safe en dev)
+// Load .env en dev (inutile sur Railway mais safe)
 dotenv.config();
 
-// ---- Sécurité .env
-if (!process.env.PRIVATE_KEY) throw new Error('PRIVATE_KEY missing!');
-if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL missing!');
+// --- Checks ---
+if (!process.env.PRIVATE_KEY) throw new Error('PRIVATE_KEY manquant dans .env');
+if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL manquant dans .env');
 
-// ---- Wallet & Connection ----
+// --- Wallet & Connection
 const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
 const creator = Keypair.fromSecretKey(secretKey);
 const mint = Keypair.generate();
 const connection = new Connection(process.env.HELIUS_RPC_URL!, "confirmed");
 
-// ---- Image pour le token ----
-const imagePath = "example/basic/logo.png"; // Mets ton image ici
+// --- Image optionnelle
+const imagePath = "example/basic/logo.png"; // Mets logo.png ici si tu veux un mint avec image
 let fileBuffer: Buffer | undefined = undefined;
 if (fs.existsSync(imagePath)) {
   fileBuffer = fs.readFileSync(imagePath);
   console.log("✅ Image trouvée pour le mint !");
 } else {
-  console.log("❌ Aucune image trouvée à ce chemin. Mint SANS image !");
+  console.log("❌ Pas d'image trouvée, mint SANS image !");
 }
 
-// ---- Paramètres token ----
-const meta = {
+// --- Instanciation SDK ---
+// (Si tu as { PumpFun } à l'export, remplace par PumpFun)
+const sdk = new PumpFunSDK({
+  connection,
+  payer: creator,
+});
+
+// --- Paramètres Token ---
+const meta: any = {
   name: "UniverseToken",
   symbol: "UNIV",
   description: "A fun universe-themed test token on Pump.fun! 🚀",
-  file: fileBuffer ? new File([fileBuffer], "logo.png") : undefined, // File = global dans Node >=18, sinon polyfill (voir plus bas)
-  // Tu peux ajouter "external_url", "twitter", "website", etc. ici
 };
+// Gestion de l'image
+if (fileBuffer) {
+  try {
+    // Pour Node >= 18
+    meta.file = new File([fileBuffer], "logo.png", { type: "image/png" });
+  } catch {
+    // Pour Node < 18, installer fetch-blob : npm install fetch-blob
+    const { File } = require("fetch-blob");
+    meta.file = new File([fileBuffer], "logo.png", { type: "image/png" });
+  }
+}
 
-// ---- Montant à acheter ----
-const buyAmountSol = 0.005;
+const buyAmountSol = 0.005; // à acheter direct après le mint
 const slippage = 500n;
 
 (async () => {
   try {
-    // -------- Mint du token --------
-    console.log("⏳ Mint du token...");
-    const sdk = new PumpFunSDK({
-      connection,
-      payer: creator,
-    });
-
-    const mintResult = await sdk.createToken(
+    console.log("⏳ Mint + buy du token...");
+    // Si createAndBuy existe
+    const result = await sdk.createAndBuy(
       creator,
       mint,
-      meta
+      meta,
+      BigInt(buyAmountSol * 1e9),
+      slippage
     );
-    console.log("✅ Token minté ! Mint:", mint.publicKey.toBase58());
-    console.log("Attends l'indexation sur pump.fun (30s à 2min max)...");
-
-    // -------- Auto-buy en boucle (anti-snipe) --------
-    const retryDelayMs = 2000;
-    const mintAddress = mint.publicKey.toBase58();
-    let bought = false;
-    while (!bought) {
-      try {
-        console.log(`⏳ Tentative d'achat sur ${mintAddress}...`);
-        const buyResult = await sdk.buyToken(
-          creator,
-          new PublicKey(mintAddress),
-          BigInt(buyAmountSol * 1e9),
-          slippage
-        );
-        console.log("🚀 Achat réussi ! Résultat :", buyResult);
-        bought = true;
-      } catch (e: any) {
-        const msg = (e && e.message) ? e.message : e.toString();
-        if (
-          msg.includes("ConstraintSeeds") ||
-          msg.includes("not indexed") ||
-          msg.includes("custom program error") ||
-          msg.includes("Simulation failed")
-        ) {
-          console.log("⏳ Pas encore indexé, retry dans 2s...");
-          await new Promise((res) => setTimeout(res, retryDelayMs));
-        } else {
-          console.error("❌ Erreur inconnue lors du buy :", msg);
-          break;
-        }
-      }
+    // Gestion du retour
+    if (result && result.success) {
+      console.log("🚀 Mint + buy réussi ! Résultat :", result);
+      console.log(`Lien Pump.fun : https://pump.fun/${mint.publicKey.toBase58()}`);
+    } else {
+      // Cas fréquent : buy trop tôt, doit être relancé
+      console.log("❌ Mint fait mais BUY échoué (token pas indexé). Relance le script pour buy dès que pump.fun le permet.");
+      console.log(result);
     }
-    console.log(`🎉 Flow terminé ! Mint: ${mintAddress}`);
-    console.log(`🧩 Pump.fun link: https://pump.fun/${mintAddress}`);
-
   } catch (err: any) {
-    console.error("Erreur dans le flow :", err.message || err);
+    // Si createAndBuy n'existe pas, erreur claire
+    if (err.message && err.message.includes("is not a function")) {
+      console.error("❌ Problème d'API du SDK : la méthode createAndBuy() n’existe pas !");
+      console.error("Teste à la place sdk.createToken puis sdk.buyToken séparément, OU change PumpFunSDK => PumpFun.");
+    } else {
+      console.error("❌ Erreur dans le flow :", err.message || err);
+    }
   }
 })();
-
-/*
-💡 Si tu es en Node < 18 (et que tu as une erreur "File is not defined"), ajoute au tout début du fichier :
-import { File } from 'node-fetch';
-ou installe "fetch-blob" et fais :
-import { File } from 'fetch-blob';
-Puis remplace new File(...) par new File([fileBuffer], "logo.png", { type: "image/png" });
-*/
