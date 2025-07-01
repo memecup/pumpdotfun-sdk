@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
-import { Keypair } from "@solana/web3.js";
-import { PumpFunSDK } from "../../src"; 
+import { Keypair, Connection } from "@solana/web3.js";
+import { PumpFunSDK } from "../../src";
 import fs from "fs";
 
 dotenv.config();
@@ -12,13 +12,15 @@ const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY));
 const creator = Keypair.fromSecretKey(secretKey);
 const mint = Keypair.generate();
 
-// Chemin vers l'image incluse dans le repo
-const imagePath = "example/basic/logo.png"; // Mets un PNG ici dans le repo
+const imagePath = "example/basic/logo.png"; // Mets le PNG ici
 const fileBuffer = fs.readFileSync(imagePath);
+
+// Correction ici : crée la connection explicitement !
+const connection = new Connection(process.env.HELIUS_RPC_URL, "confirmed");
 
 (async () => {
   const sdk = new PumpFunSDK({
-    rpc: process.env.HELIUS_RPC_URL,
+    connection, // <-- et pas "rpc"
     payer: creator,
   });
 
@@ -26,7 +28,7 @@ const fileBuffer = fs.readFileSync(imagePath);
     name: "UniverseToken",
     symbol: "UNIV",
     description: "A fun universe-themed test token on Pump.fun! 🚀",
-    file: new File([fileBuffer], "logo.png"), // File attendu par le SDK (besoin du package "file-api" ou natif Node.js >=20)
+    file: new File([fileBuffer], "logo.png"),
   };
 
   const buyAmountSol = 0.005;
