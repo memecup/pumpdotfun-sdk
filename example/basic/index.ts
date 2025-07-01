@@ -15,7 +15,8 @@ if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL manquant dans .
 const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
 const creator = Keypair.fromSecretKey(secretKey);
 const mint = Keypair.generate();
-console.log("Adresse du nouveau token mint :", mint.publicKey.toBase58());
+console.log("PRIVATE_KEY:", creator.publicKey.toBase58());
+console.log("Adresse du mint créé :", mint.publicKey.toBase58());
 
 const connection = new Connection(process.env.HELIUS_RPC_URL!, "confirmed");
 
