@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { Keypair } from "@solana/web3.js";
-import { PumpFunSDK } from "../../src";
+import { PumpFunSDK } from "../../src"; 
 import fs from "fs";
 
 dotenv.config();
