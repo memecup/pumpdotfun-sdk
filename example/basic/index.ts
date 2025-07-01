@@ -1,47 +1,23 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Keypair, Connection, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { createMint } from "@solana/spl-token";
+import dotenv from "dotenv";
+dotenv.config();
 
-// REMPLACE par ton endpoint (Helius conseillé)
-const RPC_URL = process.env.HELIUS_RPC_URL || "https://api.mainnet-beta.solana.com";
-const connection = new Connection(RPC_URL, "confirmed");
-
-// Adresse à scanner (le wallet qui a mint les tokens)
-const CREATOR_PUBKEY = "3M1RVomWfJcvKLt9yNPPVsHVATi1x9fPzz9n6DiWA4L7"; // <-- à changer si besoin
-
-async function findCreatedMints(creatorAddress) {
-  const creator = new PublicKey(creatorAddress);
-  const sigs = await connection.getSignaturesForAddress(creator, { limit: 1000 });
-
-  let foundMints = [];
-  for (const sig of sigs) {
-    const tx = await connection.getTransaction(sig.signature, { maxSupportedTransactionVersion: 0 });
-    if (!tx) continue;
-
-    for (const ix of tx.transaction.message.instructions) {
-      // PATCH : gère string / undefined / PublicKey
-      const programId = ix.programId ? (typeof ix.programId === "string" ? ix.programId : ix.programId.toBase58()) : "";
-      if (
-        programId === "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" &&
-        ix.data &&
-        (ix.data.startsWith("6") || ix.data.length === 2)
-      ) {
-        // Généralement, le mint créé est dans les keys
-        const mintAccount = tx.transaction.message.accountKeys[ix.accounts[0]].toBase58();
-        foundMints.push(mintAccount);
-      }
-    }
-  }
-
-  foundMints = [...new Set(foundMints)];
-  return foundMints;
-}
+const connection = new Connection(process.env.HELIUS_RPC_URL!, "confirmed");
+const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
+const payer = Keypair.fromSecretKey(secretKey);
 
 (async () => {
-  console.log("Recherche des mints créés par :", CREATOR_PUBKEY);
-  const mints = await findCreatedMints(CREATOR_PUBKEY);
-  if (mints.length) {
-    console.log("Mints trouvés:");
-    mints.forEach(mint => console.log(mint));
-  } else {
-    console.log("Aucun mint trouvé pour ce wallet.");
+  try {
+    const mint = await createMint(
+      connection,
+      payer,
+      payer.publicKey,
+      null,
+      9
+    );
+    console.log("✅ Mint SPL créé avec succès :", mint.toBase58());
+  } catch (err) {
+    console.error("❌ Mint SPL échoué :", err);
   }
 })();
