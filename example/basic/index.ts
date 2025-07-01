@@ -7,7 +7,8 @@ const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { File } from "fetch-blob";
+import fetchBlob from "fetch-blob";
+const File = fetchBlob.File;
 import {
   getOrCreateKeypair,
   getSPLBalance,
