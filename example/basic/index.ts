@@ -1,11 +1,9 @@
 import dotenv from "dotenv";
 import { Keypair } from "@solana/web3.js";
-import { PumpFunSDK } from "../../src"; // chemin relatif depuis example/basic/
+import { PumpFunSDK } from "../../src";
 
-// Load .env in dev, Railway injectera les vars automatiquement en prod
 dotenv.config();
 
-// ----- CONFIG -------
 if (!process.env.PRIVATE_KEY) throw new Error('PRIVATE_KEY missing!');
 if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL missing!');
 
@@ -20,10 +18,10 @@ const mint = Keypair.generate();
   });
 
   const meta = {
-    name: "UniversToken",
-    symbol: "UNV",
-    description: "Token test univers",
-    uri: "https://gateway.pinata.cloud/ipfs/bafkreidgko6n7r2va2zjbzp4qaj6ybb4vrxafukknkl7qcnbyhn7pxejty",
+    name: "UniverseToken",
+    symbol: "UNIV",
+    description: "A fun universe-themed test token on Pump.fun! 🚀"
+    // AUCUN champ image, filePath ou uri ici !
   };
 
   const buyAmountSol = 0.005;
