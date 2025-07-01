@@ -6,7 +6,10 @@ import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
+import { File as FetchFile } from "fetch-blob/from.js"; // npm install fetch-blob
 import {
+  getOrCreateKeypair,
   getSPLBalance,
   printSOLBalance,
   printSPLBalance
@@ -14,7 +17,6 @@ import {
 
 dotenv.config();
 
-// Compatible ESM/Node
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KEYS_FOLDER = join(__dirname, ".keys");
 const SLIPPAGE_BASIS_POINTS = 100n;
@@ -25,9 +27,7 @@ const getProvider = () => {
   }
 
   const connection = new Connection(process.env.HELIUS_RPC_URL, "finalized");
-
-  // Utilise TA clé privée du .env (exportée au format array)
-  if (!process.env.PRIVATE_KEY) throw new Error("PRIVATE_KEY manquant dans .env");
+  // Wallet Railway : injecte PRIVATE_KEY
   const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
   const keypair = Keypair.fromSecretKey(secretKey);
   const wallet = new NodeWallet(keypair);
@@ -36,11 +36,22 @@ const getProvider = () => {
 };
 
 const createAndBuyToken = async (sdk: PumpFunSDK, testAccount: Keypair, mint: Keypair) => {
-  const tokenMetadata = {
+  // Charge logo.png s’il existe
+  let logoFile: any = undefined;
+  const logoPath = join(__dirname, "logo.png");
+  if (fs.existsSync(logoPath)) {
+    const buffer = fs.readFileSync(logoPath);
+    logoFile = new FetchFile([buffer], "logo.png", { type: "image/png" });
+    console.log("✅ Image logo.png chargée pour le mint.");
+  } else {
+    console.log("⚠️ Pas d'image trouvée, mint sans image !");
+  }
+
+  const tokenMetadata: any = {
     name: "TST-7",
     symbol: "TST-7",
     description: "TST-7: This is a test token",
-    filePath: join(__dirname, "logo.png"), // assure-toi que ce fichier existe bien
+    ...(logoFile ? { file: logoFile } : {}),
   };
 
   const createResults = await sdk.createAndBuy(
@@ -120,9 +131,9 @@ const main = async () => {
     const sdk = new PumpFunSDK(provider);
     const connection = provider.connection;
 
-    // Ici, c’est TA clé privée qui sert pour tout
-    const testAccount = provider.wallet.payer as Keypair;
-    const mint = Keypair.generate(); // Nouveau token à chaque run
+    // Utilise ton vrai wallet Railway !
+    const testAccount = getOrCreateKeypair(KEYS_FOLDER, "test-account");
+    const mint = getOrCreateKeypair(KEYS_FOLDER, "mint");
 
     await printSOLBalance(connection, testAccount.publicKey, "Ton wallet");
 
@@ -131,7 +142,7 @@ const main = async () => {
 
     const currentSolBalance = await connection.getBalance(testAccount.publicKey);
     if (currentSolBalance === 0) {
-      console.log("Please send some SOL to the test-account:", testAccount.publicKey.toBase58());
+      console.log("Please send some SOL to le wallet:", testAccount.publicKey.toBase58());
       return;
     }
 
