@@ -6,21 +6,17 @@ import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import * as fs from "fs";
-import { Blob } from "buffer";
-import {
-  getOrCreateKeypair,
-  getSPLBalance,
-  printSOLBalance,
-  printSPLBalance
-} from "../util.ts";
+import fs from "fs";
+
+// Pour l'image
+import fetchblobModule from "fetch-blob/from.js";
+const Blob = fetchblobModule.Blob;
 
 dotenv.config();
 
-// ESM-compatible __dirname
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const KEYS_FOLDER = join(__dirname, ".keys");
 const SLIPPAGE_BASIS_POINTS = 100n;
+const LOGO_PATH = join(__dirname, "logo.png");
 
 const getProvider = () => {
   if (!process.env.HELIUS_RPC_URL) {
@@ -30,108 +26,95 @@ const getProvider = () => {
   const connection = new Connection(process.env.HELIUS_RPC_URL, "finalized");
   const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
   const keypair = Keypair.fromSecretKey(secretKey);
-  console.log(">>> Adresse Solana (PRIVATE_KEY utilisée) :", keypair.publicKey.toBase58());
   const wallet = new NodeWallet(keypair);
 
+  console.log(">>> Adresse Solana (PRIVATE_KEY utilisée) :", keypair.publicKey.toBase58());
   return new AnchorProvider(connection, wallet, { commitment: "finalized" });
 };
 
-const createAndBuyToken = async (sdk: PumpFunSDK, testAccount: Keypair, mint: Keypair) => {
+const createAndBuyToken = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair) => {
+  let logoFile;
+  if (fs.existsSync(LOGO_PATH)) {
+    const buffer = fs.readFileSync(LOGO_PATH);
+    logoFile = new Blob([buffer], { type: "image/png" });
+    console.log("✅ Logo.png chargé pour le mint !");
+  } else {
+    console.warn("❌ Aucun logo trouvé, le mint sera sans image !");
+  }
+
   const tokenMetadata: any = {
     name: "TST-7",
     symbol: "TST-7",
-    description: "TST-7: This is a test token"
-    // file: sera ajouté si image trouvée
+    description: "TST-7: This is a test token",
   };
+  if (logoFile) tokenMetadata.file = logoFile;
 
-  // Gère l'image (logo.png à la racine du dossier basic !)
-  const imagePath = join(__dirname, "logo.png");
-  if (fs.existsSync(imagePath)) {
-    const fileBuffer = fs.readFileSync(imagePath);
-
-    // Polyfill File pour Node.js (compatible PumpFunSDK)
-    class File extends Blob {
-      name: string;
-      constructor(chunks: any[], name: string, opts: any) {
-        super(chunks, opts);
-        this.name = name;
-      }
-    }
-
-    tokenMetadata.file = new File([fileBuffer], "logo.png", { type: "image/png" });
-    console.log("✅ Image trouvée et injectée dans le mint.");
-  } else {
-    console.log("❌ Pas d'image trouvée, mint SANS image !");
-  }
-
-  const createResults = await sdk.createAndBuy(
-    testAccount,
-    mint,
-    tokenMetadata,
-    BigInt(0.0001 * LAMPORTS_PER_SOL),
-    SLIPPAGE_BASIS_POINTS,
-    {
-      unitLimit: 250000,
-      unitPrice: 250000,
-    }
-  );
-
-  if (createResults.success) {
-    console.log("Success:", `https://pump.fun/${mint.publicKey.toBase58()}`);
-    await printSPLBalance(sdk.connection, mint.publicKey, testAccount.publicKey);
-  } else {
-    console.log("Create and Buy failed");
-    console.log(createResults);
-  }
-};
-
-const buyTokens = async (sdk: PumpFunSDK, testAccount: Keypair, mint: Keypair) => {
-  const buyResults = await sdk.buy(
-    testAccount,
-    mint.publicKey,
-    BigInt(0.0001 * LAMPORTS_PER_SOL),
-    SLIPPAGE_BASIS_POINTS,
-    {
-      unitLimit: 250000,
-      unitPrice: 250000,
-    }
-  );
-
-  if (buyResults.success) {
-    await printSPLBalance(sdk.connection, mint.publicKey, testAccount.publicKey);
-    console.log("Bonding curve after buy", await sdk.getBondingCurveAccount(mint.publicKey));
-  } else {
-    console.log("Buy failed");
-  }
-};
-
-const sellTokens = async (sdk: PumpFunSDK, testAccount: Keypair, mint: Keypair) => {
-  const currentSPLBalance = await getSPLBalance(
-    sdk.connection,
-    mint.publicKey,
-    testAccount.publicKey
-  );
-  console.log("currentSPLBalance", currentSPLBalance);
-
-  if (currentSPLBalance) {
-    const sellResults = await sdk.sell(
-      testAccount,
-      mint.publicKey,
-      BigInt(currentSPLBalance * Math.pow(10, DEFAULT_DECIMALS)),
+  // Mint puis auto-retry sur buy
+  try {
+    console.log("⏳ Mint du token...");
+    const res = await sdk.createAndBuy(
+      payer,
+      mint,
+      tokenMetadata,
+      BigInt(0.0001 * LAMPORTS_PER_SOL),
       SLIPPAGE_BASIS_POINTS,
       {
         unitLimit: 250000,
         unitPrice: 250000,
       }
     );
-
-    if (sellResults.success) {
-      await printSOLBalance(sdk.connection, testAccount.publicKey, "Test Account keypair");
-      await printSPLBalance(sdk.connection, mint.publicKey, testAccount.publicKey, "After SPL sell all");
-      console.log("Bonding curve after sell", await sdk.getBondingCurveAccount(mint.publicKey));
+    if (res.success) {
+      console.log("🚀 Mint + buy réussi ! Lien Pump.fun :", `https://pump.fun/${mint.publicKey.toBase58()}`);
+      return;
     } else {
-      console.log("Sell failed");
+      // Si le buy rate à cause de l'indexation Pump.fun
+      if (
+        res.error &&
+        (res.error.message?.includes("ConstraintSeeds") || res.error.message?.includes("0x7d6"))
+      ) {
+        console.warn("Mint ok mais buy trop tôt ! On va réessayer jusqu'à succès...");
+        await autoRetryBuy(sdk, payer, mint);
+      } else {
+        console.error("Erreur inattendue dans le flow :", res.error || res);
+      }
     }
+  } catch (e: any) {
+    console.error("Erreur pendant le mint :", e.message || e);
+  }
+};
+
+const autoRetryBuy = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair) => {
+  let bought = false;
+  let tryCount = 0;
+  while (!bought && tryCount < 15) {
+    tryCount++;
+    console.log(`⏳ [Retry #${tryCount}] Tentative de buy...`);
+    await new Promise(res => setTimeout(res, 12000)); // 12 secondes
+    try {
+      const buyRes = await sdk.buy(
+        payer,
+        mint.publicKey,
+        BigInt(0.0001 * LAMPORTS_PER_SOL),
+        SLIPPAGE_BASIS_POINTS,
+        {
+          unitLimit: 250000,
+          unitPrice: 250000,
+        }
+      );
+      if (buyRes.success) {
+        bought = true;
+        console.log("✅ Buy réussi après retry !", buyRes);
+        console.log("Lien Pump.fun :", `https://pump.fun/${mint.publicKey.toBase58()}`);
+        break;
+      } else {
+        console.log("Buy failed, retrying...", buyRes.error || buyRes);
+      }
+    } catch (e) {
+      console.log("Buy error, retrying...", e);
+    }
+  }
+  if (!bought) {
+    console.warn("⚠️ Impossible de buy après 15 tentatives. Attends que Pump.fun indexe le token et relance !");
   }
 };
 
@@ -140,35 +123,22 @@ const main = async () => {
     const provider = getProvider();
     const sdk = new PumpFunSDK(provider);
     const connection = provider.connection;
-
     const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
-    const userKeypair = Keypair.fromSecretKey(secretKey);
+    const payer = Keypair.fromSecretKey(secretKey);
+    const mint = Keypair.generate();
 
-    // On utilise le vrai wallet Railway comme testAccount !
-    const testAccount = userKeypair;
-    const mint = getOrCreateKeypair(KEYS_FOLDER, "mint");
-
-    await printSOLBalance(connection, testAccount.publicKey, "Ton wallet");
+    // Affiche solde du wallet principal
+    const sol = await connection.getBalance(payer.publicKey);
+    console.log(`Ton wallet ${payer.publicKey.toBase58()}: ${sol / LAMPORTS_PER_SOL} SOL`);
+    if (sol === 0) {
+      console.log("Please send some SOL to le wallet:", payer.publicKey.toBase58());
+      return;
+    }
 
     const globalAccount = await sdk.getGlobalAccount();
     console.log(globalAccount);
 
-    const currentSolBalance = await connection.getBalance(testAccount.publicKey);
-    if (currentSolBalance === 0) {
-      console.log("Please send some SOL to le wallet:", testAccount.publicKey.toBase58());
-      return;
-    }
-
-    let bondingCurveAccount = await sdk.getBondingCurveAccount(mint.publicKey);
-    if (!bondingCurveAccount) {
-      await createAndBuyToken(sdk, testAccount, mint);
-      bondingCurveAccount = await sdk.getBondingCurveAccount(mint.publicKey);
-    }
-
-    if (bondingCurveAccount) {
-      await buyTokens(sdk, testAccount, mint);
-      await sellTokens(sdk, testAccount, mint);
-    }
+    await createAndBuyToken(sdk, payer, mint);
   } catch (error) {
     console.error("An error occurred:", error);
   }
