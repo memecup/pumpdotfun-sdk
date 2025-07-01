@@ -2,7 +2,8 @@ import dotenv from "dotenv";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { DEFAULT_DECIMALS, PumpFunSDK } from "pumpdotfun-sdk";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet.js"; // << LA CLEF
+import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
+const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import {
@@ -11,6 +12,7 @@ import {
   printSOLBalance,
   printSPLBalance
 } from "../util.ts";
+
 
 dotenv.config();
 
