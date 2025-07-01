@@ -1,154 +1,46 @@
 import dotenv from "dotenv";
+import { Keypair } from "@solana/web3.js";
+import { PumpFunSDK } from "../../src"; // chemin relatif depuis example/basic/
 import fs from "fs";
-import path from "path";
-import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { DEFAULT_DECIMALS, PumpFunSDK } from "../../src/index.js";
-import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import {
-  getOrCreateKeypair,
-  getSPLBalance,
-  printSOLBalance,
-  printSPLBalance,
-} from "../util.js";
 
-const KEYS_FOLDER = path.join(import.meta.dirname, ".keys");
-const SLIPPAGE_BASIS_POINTS = 100n;
+// Load .env in dev, Railway injectera les vars automatiquement en prod
+dotenv.config();
 
-//create token example:
-//https://solscan.io/tx/bok9NgPeoJPtYQHoDqJZyRDmY88tHbPcAk1CJJsKV3XEhHpaTZhUCG3mA9EQNXcaUfNSgfPkuVbEsKMp6H7D9NY
-//devnet faucet
-//https://faucet.solana.com/
+// ----- CONFIG -------
+const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
+const creator = Keypair.fromSecretKey(secretKey);
+const mint = Keypair.generate();
 
-const main = async () => {
-  dotenv.config();
+const imagePath = "example/basic/random.png"; // optionnel, ou met une URL si tu préfères
 
-  if (!process.env.HELIUS_RPC_URL) {
-    console.error("Please set HELIUS_RPC_URL in .env file");
-    console.error(
-      "Example: HELIUS_RPC_URL=https://mainnet.helius-rpc.com/?api-key=<your api key>"
-    );
-    console.error("Get one at: https://www.helius.dev");
-    return;
+(async () => {
+  // Prépare le buffer image si présent (peut être omis si non utilisé)
+  let fileBuffer: Buffer | undefined = undefined;
+  if (fs.existsSync(imagePath)) {
+    fileBuffer = fs.readFileSync(imagePath);
   }
 
-  let connection = new Connection(process.env.HELIUS_RPC_URL || "");
-
-  let wallet = new Wallet(new Keypair()); //note this is not used
-  const provider = new AnchorProvider(connection, wallet, {
-    commitment: "finalized",
+  const sdk = new PumpFunSDK({
+    rpc: process.env.RPC_URL!,
+    payer: creator,
   });
 
-  const testAccount = getOrCreateKeypair(KEYS_FOLDER, "test-account");
-  const mint = getOrCreateKeypair(KEYS_FOLDER, "mint");
+  const meta = {
+    name: "Univers",
+    symbol: "UNV",
+    description: "Token test univers",
+    filePath: fileBuffer ? imagePath : undefined, // gère le cas sans image
+  };
 
-  await printSOLBalance(
-    connection,
-    testAccount.publicKey,
-    "Test Account keypair"
+  const buyAmountSol = 0.005;
+  const slippage = 500n;
+
+  const result = await sdk.createAndBuy(
+    creator,
+    mint,
+    meta,
+    BigInt(buyAmountSol * 1e9),
+    slippage
   );
-
-  let sdk = new PumpFunSDK(provider);
-
-  let globalAccount = await sdk.getGlobalAccount();
-  console.log(globalAccount);
-
-  let currentSolBalance = await connection.getBalance(testAccount.publicKey);
-  if (currentSolBalance == 0) {
-    console.log(
-      "Please send some SOL to the test-account:",
-      testAccount.publicKey.toBase58()
-    );
-    return;
-  }
-
-  console.log(await sdk.getGlobalAccount());
-
-  //Check if mint already exists
-  let boundingCurveAccount = await sdk.getBondingCurveAccount(mint.publicKey);
-  if (!boundingCurveAccount) {
-    let tokenMetadata = {
-      name: "TST-7",
-      symbol: "TST-7",
-      description: "TST-7: This is a test token",
-      file: await fs.openAsBlob("example/basic/random.png"),
-    };
-
-    let createResults = await sdk.createAndBuy(
-      testAccount,
-      mint,
-      tokenMetadata,
-      BigInt(0.0001 * LAMPORTS_PER_SOL),
-      SLIPPAGE_BASIS_POINTS,
-      {
-        unitLimit: 250000,
-        unitPrice: 250000,
-      },
-    );
-
-    if (createResults.success) {
-      console.log("Success:", `https://pump.fun/${mint.publicKey.toBase58()}`);
-      boundingCurveAccount = await sdk.getBondingCurveAccount(mint.publicKey);
-      console.log("Bonding curve after create and buy", boundingCurveAccount);
-      printSPLBalance(connection, mint.publicKey, testAccount.publicKey);
-    }
-  } else {
-    console.log("boundingCurveAccount", boundingCurveAccount);
-    console.log("Success:", `https://pump.fun/${mint.publicKey.toBase58()}`);
-    printSPLBalance(connection, mint.publicKey, testAccount.publicKey);
-  }
-
-  if (boundingCurveAccount) {
-    //buy 0.0001 SOL worth of tokens
-    let buyResults = await sdk.buy(
-      testAccount,
-      mint.publicKey,
-      BigInt(0.0001 * LAMPORTS_PER_SOL),
-      SLIPPAGE_BASIS_POINTS,
-      {
-        unitLimit: 250000,
-        unitPrice: 250000,
-      },
-    );
-
-    if (buyResults.success) {
-      printSPLBalance(connection, mint.publicKey, testAccount.publicKey);
-      console.log("Bonding curve after buy", await sdk.getBondingCurveAccount(mint.publicKey));
-    } else {
-      console.log("Buy failed");
-    }
-
-    //sell all tokens
-    let currentSPLBalance = await getSPLBalance(
-      connection,
-      mint.publicKey,
-      testAccount.publicKey
-    );
-    console.log("currentSPLBalance", currentSPLBalance);
-    if (currentSPLBalance) {
-      let sellResults = await sdk.sell(
-        testAccount,
-        mint.publicKey,
-        BigInt(currentSPLBalance * Math.pow(10, DEFAULT_DECIMALS)),
-        SLIPPAGE_BASIS_POINTS,
-        {
-          unitLimit: 250000,
-          unitPrice: 250000,
-        },
-      );
-      if (sellResults.success) {
-        await printSOLBalance(
-          connection,
-          testAccount.publicKey,
-          "Test Account keypair"
-        );
-
-        printSPLBalance(connection, mint.publicKey, testAccount.publicKey, "After SPL sell all");
-        console.log("Bonding curve after sell", await sdk.getBondingCurveAccount(mint.publicKey));
-      } else {
-        console.log("Sell failed");
-      }
-    }
-  }
-};
-
-main();
+  console.log("✅ Token créé & acheté ! Résultat :", result);
+})();
