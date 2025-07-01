@@ -6,11 +6,22 @@ import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname } from "path";
 import { fileURLToPath } from "url";
+// Pas besoin de fs
+import { Blob } from "fetch-blob";
 
 dotenv.config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SLIPPAGE_BASIS_POINTS = 100n;
+
+// Mini logo PNG “fake” (1 pixel transparent)
+const EMPTY_PNG = Uint8Array.from([
+  0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,
+  0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x06,0x00,0x00,0x00,0x1f,0x15,0xc4,
+  0x89,0x00,0x00,0x00,0x0a,0x49,0x44,0x41,0x54,0x78,0x9c,0x63,0x00,0x01,0x00,0x00,
+  0x05,0x00,0x01,0x0d,0x0a,0x2d,0xb4,0x00,0x00,0x00,0x00,0x49,0x45,0x4e,0x44,0xae,
+  0x42,0x60,0x82
+]);
 
 const getProvider = () => {
   if (!process.env.HELIUS_RPC_URL) {
@@ -25,10 +36,14 @@ const getProvider = () => {
 };
 
 const createAndBuyToken = async (sdk, payer, mint) => {
+  // Fake file
+  const fakeLogo = new Blob([EMPTY_PNG], { type: "image/png" });
+
   const tokenMetadata = {
     name: "TST-7",
     symbol: "TST-7",
-    description: "TST-7: This is a test token"
+    description: "TST-7: This is a test token",
+    file: fakeLogo   // <= pour contenter le SDK
   };
 
   try {
