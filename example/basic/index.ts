@@ -7,10 +7,7 @@ const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-
-// Pour l'image
-import fetchblobModule from "fetch-blob/from.js";
-const Blob = fetchblobModule.Blob;
+import FetchBlob from "fetch-blob"; // Import direct, PAS 'default' ni named!
 
 dotenv.config();
 
@@ -22,22 +19,20 @@ const getProvider = () => {
   if (!process.env.HELIUS_RPC_URL) {
     throw new Error("Please set HELIUS_RPC_URL in .env file");
   }
-
   const connection = new Connection(process.env.HELIUS_RPC_URL, "finalized");
   const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
   const keypair = Keypair.fromSecretKey(secretKey);
   const wallet = new NodeWallet(keypair);
-
   console.log(">>> Adresse Solana (PRIVATE_KEY utilisée) :", keypair.publicKey.toBase58());
   return new AnchorProvider(connection, wallet, { commitment: "finalized" });
 };
 
 const createAndBuyToken = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair) => {
-  let logoFile;
+  let logoFile = undefined;
   if (fs.existsSync(LOGO_PATH)) {
     const buffer = fs.readFileSync(LOGO_PATH);
-    logoFile = new Blob([buffer], { type: "image/png" });
-    console.log("✅ Logo.png chargé pour le mint !");
+    logoFile = new FetchBlob([buffer], { type: "image/png" }); // ICI : FetchBlob !
+    console.log("✅ logo.png chargé pour le mint !");
   } else {
     console.warn("❌ Aucun logo trouvé, le mint sera sans image !");
   }
@@ -49,7 +44,6 @@ const createAndBuyToken = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair)
   };
   if (logoFile) tokenMetadata.file = logoFile;
 
-  // Mint puis auto-retry sur buy
   try {
     console.log("⏳ Mint du token...");
     const res = await sdk.createAndBuy(
@@ -67,7 +61,6 @@ const createAndBuyToken = async (sdk: PumpFunSDK, payer: Keypair, mint: Keypair)
       console.log("🚀 Mint + buy réussi ! Lien Pump.fun :", `https://pump.fun/${mint.publicKey.toBase58()}`);
       return;
     } else {
-      // Si le buy rate à cause de l'indexation Pump.fun
       if (
         res.error &&
         (res.error.message?.includes("ConstraintSeeds") || res.error.message?.includes("0x7d6"))
