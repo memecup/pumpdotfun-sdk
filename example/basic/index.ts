@@ -21,7 +21,7 @@ const imagePath = "example/basic/random.png"; // optionnel, ou met une URL si tu
   }
 
   const sdk = new PumpFunSDK({
-    rpc: process.env.RPC_URL!,
+    rpc: process.env.HELIUS_RPC_URL!,
     payer: creator,
   });
 
