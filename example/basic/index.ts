@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { Keypair, Connection } from "@solana/web3.js";
 import { PumpFunSDK } from "pumpdotfun-sdk";
 import fs from "fs";
+import { File as FetchFile } from "fetch-blob/from.js"; // Assure-toi d'avoir installé fetch-blob
 
 dotenv.config();
 
@@ -10,7 +11,6 @@ if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL manquant dans .
 
 const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
 const creator = Keypair.fromSecretKey(secretKey);
-
 const mint = Keypair.generate();
 
 console.log("PRIVATE_KEY (wallet):", creator.publicKey.toBase58());
@@ -23,12 +23,22 @@ const sdk = new PumpFunSDK({
   connection: connection,
 });
 
+// --- Gestion image robuste ---
 const meta: any = {
   name: "UniverseToken",
   symbol: "UNIV",
-  description: "A fun universe-themed test token on Pump.fun! 🚀",
-  // Si tu veux gérer l'image, ajoute plus tard (voir plus bas)
+  description: "A fun universe-themed test token on Pump.fun! 🚀"
 };
+
+const imagePath = "example/basic/logo.png"; // Mets ton image ici
+if (fs.existsSync(imagePath)) {
+  const fileBuffer = fs.readFileSync(imagePath);
+  // Solution compatible partout :
+  meta.file = new FetchFile([fileBuffer], "logo.png", { type: "image/png" });
+  console.log("✅ Image trouvée et ajoutée à meta !");
+} else {
+  console.log("❌ Pas d'image trouvée, mint SANS image !");
+}
 
 const buyAmountSol = 0.005;
 const slippage = 500n;
