@@ -1,27 +1,21 @@
 import dotenv from "dotenv";
 import { Keypair } from "@solana/web3.js";
 import { PumpFunSDK } from "../../src"; // chemin relatif depuis example/basic/
-import fs from "fs";
 
 // Load .env in dev, Railway injectera les vars automatiquement en prod
 dotenv.config();
 
 // ----- CONFIG -------
-const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
+if (!process.env.PRIVATE_KEY) throw new Error('PRIVATE_KEY missing!');
+if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL missing!');
+
+const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY));
 const creator = Keypair.fromSecretKey(secretKey);
 const mint = Keypair.generate();
 
-const imagePath = "example/basic/random.png"; // optionnel, ou met une URL si tu préfères
-
 (async () => {
-  // Prépare le buffer image si présent (peut être omis si non utilisé)
-  let fileBuffer: Buffer | undefined = undefined;
-  if (fs.existsSync(imagePath)) {
-    fileBuffer = fs.readFileSync(imagePath);
-  }
-
   const sdk = new PumpFunSDK({
-    rpc: process.env.HELIUS_RPC_URL!,
+    rpc: process.env.HELIUS_RPC_URL,
     payer: creator,
   });
 
@@ -29,7 +23,7 @@ const imagePath = "example/basic/random.png"; // optionnel, ou met une URL si tu
     name: "Univers",
     symbol: "UNV",
     description: "Token test univers",
-    filePath: fileBuffer ? imagePath : undefined, // gère le cas sans image
+    image: "https://ipfs.io/ipfs/bafkreidgko6n7r2va2zjbzp4qaj6ybb4vrxafukknkl7qcnbyhn7pxejty", // <-- Image IPFS Pinata
   };
 
   const buyAmountSol = 0.005;
