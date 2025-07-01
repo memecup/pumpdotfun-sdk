@@ -124,17 +124,19 @@ const sellTokens = async (sdk: PumpFunSDK, testAccount: Keypair, mint: Keypair) 
   }
 };
 
+// ... tout pareil au début ...
 const main = async () => {
   try {
     const provider = getProvider();
     const sdk = new PumpFunSDK(provider);
     const connection = provider.connection;
 
-    // Le wallet utilisé ici est bien celui de Railway (et de ta variable PRIVATE_KEY)
-    const testAccount = getOrCreateKeypair(KEYS_FOLDER, "test-account");
+    // Utilise TON wallet
+    const testAccount = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!)));
+    // Optionnel : tu peux aussi nommer "creator" au lieu de testAccount si tu veux plus clair
     const mint = getOrCreateKeypair(KEYS_FOLDER, "mint");
 
-    await printSOLBalance(connection, testAccount.publicKey, "Test Account keypair");
+    await printSOLBalance(connection, testAccount.publicKey, "Ton wallet");
 
     const globalAccount = await sdk.getGlobalAccount();
     console.log(globalAccount);
@@ -159,5 +161,4 @@ const main = async () => {
     console.error("An error occurred:", error);
   }
 };
-
 main();
