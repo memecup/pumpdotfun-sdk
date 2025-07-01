@@ -1,66 +1,96 @@
 import dotenv from "dotenv";
-import { Keypair, Connection } from "@solana/web3.js";
-import { PumpFunSDK } from "pumpdotfun-sdk";
-import fs from "fs";
-import { File as FetchFile } from "fetch-blob/from.js"; // Assure-toi d'avoir installé fetch-blob
+import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { DEFAULT_DECIMALS, PumpFunSDK } from "pumpdotfun-sdk";
+import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
+import { AnchorProvider } from "@coral-xyz/anchor";
+import {
+  getOrCreateKeypair,
+  getSPLBalance,
+  printSOLBalance,
+  printSPLBalance,
+} from "./util"; // Ce fichier doit être présent, cf. README
 
 dotenv.config();
 
-if (!process.env.PRIVATE_KEY) throw new Error('PRIVATE_KEY manquant dans .env');
-if (!process.env.HELIUS_RPC_URL) throw new Error('HELIUS_RPC_URL manquant dans .env');
+const KEYS_FOLDER = __dirname + "/.keys";
+const SLIPPAGE_BASIS_POINTS = 100n;
 
-const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
-const creator = Keypair.fromSecretKey(secretKey);
-const mint = Keypair.generate();
-
-console.log("PRIVATE_KEY (wallet):", creator.publicKey.toBase58());
-console.log("Adresse du mint créé :", mint.publicKey.toBase58());
-
-const connection = new Connection(process.env.HELIUS_RPC_URL!, "confirmed");
-
-const sdk = new PumpFunSDK({
-  payer: creator,
-  connection: connection,
-});
-
-// --- Gestion image robuste ---
-const meta: any = {
-  name: "UniverseToken",
-  symbol: "UNIV",
-  description: "A fun universe-themed test token on Pump.fun! 🚀"
+// ------------------------
+// PROVIDER ANCHOR SOLANA
+// ------------------------
+const getProvider = () => {
+  if (!process.env.HELIUS_RPC_URL) {
+    throw new Error("HELIUS_RPC_URL manquant dans .env");
+  }
+  const connection = new Connection(process.env.HELIUS_RPC_URL);
+  const wallet = new NodeWallet(getOrCreateKeypair(KEYS_FOLDER, "test-account"));
+  return new AnchorProvider(connection, wallet, { commitment: "finalized" });
 };
 
-const imagePath = "example/basic/logo.png"; // Mets ton image ici
-if (fs.existsSync(imagePath)) {
-  const fileBuffer = fs.readFileSync(imagePath);
-  // Solution compatible partout :
-  meta.file = new FetchFile([fileBuffer], "logo.png", { type: "image/png" });
-  console.log("✅ Image trouvée et ajoutée à meta !");
-} else {
-  console.log("❌ Pas d'image trouvée, mint SANS image !");
-}
+const createAndBuyToken = async (sdk, testAccount, mint) => {
+  const tokenMetadata = {
+    name: "TST-7",
+    symbol: "TST-7",
+    description: "TST-7: This is a test token",
+    filePath: "example/basic/logo.png", // Mets un PNG ici si tu veux une image
+  };
 
-const buyAmountSol = 0.005;
-const slippage = 500n;
-
-(async () => {
-  try {
-    console.log("⏳ Mint + buy du token...");
-    const result = await sdk.createAndBuy(
-      creator,
-      mint,
-      meta,
-      BigInt(buyAmountSol * 1e9),
-      slippage
-    );
-    if (result && result.success) {
-      console.log("🚀 Mint + buy réussi ! Résultat :", result);
-      console.log(`Lien Pump.fun : https://pump.fun/${mint.publicKey.toBase58()}`);
-    } else {
-      console.log("❌ Mint fait mais BUY échoué (token pas indexé). Relance le script pour buy dès que pump.fun le permet.");
-      console.log(result);
+  const createResults = await sdk.createAndBuy(
+    testAccount,
+    mint,
+    tokenMetadata,
+    BigInt(0.0001 * LAMPORTS_PER_SOL),
+    SLIPPAGE_BASIS_POINTS,
+    {
+      unitLimit: 250000,
+      unitPrice: 250000,
     }
-  } catch (err: any) {
-    console.error("❌ Erreur dans le flow :", err.message || err);
+  );
+
+  if (createResults.success) {
+    console.log("✅ Mint + Buy réussi:", `https://pump.fun/${mint.publicKey.toBase58()}`);
+    printSPLBalance(sdk.connection, mint.publicKey, testAccount.publicKey);
+  } else {
+    console.log("❌ Create and Buy failed");
   }
-})();
+};
+
+// ... (laisse buyTokens et sellTokens comme dans ton exemple ci-dessus)
+
+const main = async () => {
+  try {
+    const provider = getProvider();
+    const sdk = new PumpFunSDK(provider);
+    const connection = provider.connection;
+
+    const testAccount = getOrCreateKeypair(KEYS_FOLDER, "test-account");
+    const mint = getOrCreateKeypair(KEYS_FOLDER, "mint");
+
+    await printSOLBalance(connection, testAccount.publicKey, "Test Account keypair");
+
+    const globalAccount = await sdk.getGlobalAccount();
+    console.log("Global Pumpfun account :", globalAccount);
+
+    const currentSolBalance = await connection.getBalance(testAccount.publicKey);
+    if (currentSolBalance === 0) {
+      console.log("❌ Envoie un peu de SOL à ce wallet test :", testAccount.publicKey.toBase58());
+      return;
+    }
+
+    let bondingCurveAccount = await sdk.getBondingCurveAccount(mint.publicKey);
+    if (!bondingCurveAccount) {
+      await createAndBuyToken(sdk, testAccount, mint);
+      bondingCurveAccount = await sdk.getBondingCurveAccount(mint.publicKey);
+    }
+
+    if (bondingCurveAccount) {
+      // Tu peux activer les lignes suivantes pour acheter/vendre ensuite
+      // await buyTokens(sdk, testAccount, mint);
+      // await sellTokens(sdk, testAccount, mint);
+    }
+  } catch (error) {
+    console.error("An error occurred:", error);
+  }
+};
+
+main();
