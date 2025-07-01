@@ -28,20 +28,13 @@ const getProvider = () => {
 };
 
 const createAndBuyToken = async (sdk, payer, mint) => {
-  let logoFile = undefined;
-  if (fs.existsSync(LOGO_PATH)) {
-    const buffer = fs.readFileSync(LOGO_PATH);
-    logoFile = new Blob([buffer], { type: "image/png" });
-    console.log("✅ logo.png chargé pour le mint !");
-  } else {
-    console.warn("❌ Aucun logo trouvé, le mint sera sans image !");
-  }
+
 
   const tokenMetadata = {
     name: "TST-7",
     symbol: "TST-7",
     description: "TST-7: This is a test token",
-    ...(logoFile && { file: logoFile }),
+  
   };
 
   try {
