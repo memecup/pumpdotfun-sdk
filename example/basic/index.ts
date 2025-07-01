@@ -6,15 +6,19 @@ import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 import { dirname } from "path";
 import { fileURLToPath } from "url";
-// Pas besoin de fs
 import { Blob } from "fetch-blob";
 
 dotenv.config();
 
+// Patch global Blob si nécessaire
+if (typeof globalThis.Blob === "undefined") {
+  globalThis.Blob = Blob;
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SLIPPAGE_BASIS_POINTS = 100n;
 
-// Mini logo PNG “fake” (1 pixel transparent)
+// Mini PNG 1x1 transparent
 const EMPTY_PNG = Uint8Array.from([
   0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,
   0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x06,0x00,0x00,0x00,0x1f,0x15,0xc4,
@@ -43,7 +47,7 @@ const createAndBuyToken = async (sdk, payer, mint) => {
     name: "TST-7",
     symbol: "TST-7",
     description: "TST-7: This is a test token",
-    file: fakeLogo   // <= pour contenter le SDK
+    file: fakeLogo
   };
 
   try {
