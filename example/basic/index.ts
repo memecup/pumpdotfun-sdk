@@ -7,13 +7,19 @@ import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { File } from "fetch-blob/file.js";
 
+// =========== LOG DEMARRAGE ==============
+console.log("========= DEMARRAGE SCRIPT PUMP.FUN =========");
+
+// Config .env et NodeWallet
 dotenv.config();
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SLIPPAGE_BASIS_POINTS = 100n;
 
+// ================= PROVIDER =================
 const getProvider = () => {
+  console.log("[1] Appel getProvider");
   if (!process.env.HELIUS_RPC_URL) {
     throw new Error("Please set HELIUS_RPC_URL in .env file");
   }
@@ -27,10 +33,17 @@ const getProvider = () => {
 
 // Patch globalThis
 if (typeof globalThis.File === "undefined") {
+  console.log("[2] Patch globalThis.File");
   globalThis.File = File;
+} else {
+  console.log("[2] globalThis.File existant");
 }
 
+// ============ MINT + BUY =============
 const createAndBuyToken = async (sdk, payer, mint) => {
+  console.log("[3] createAndBuyToken: Début");
+
+  // Utilise un fake mini PNG, évite File must be Blob error
   const fakeLogo = new File(
     [Uint8Array.from([
       0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,
@@ -51,7 +64,7 @@ const createAndBuyToken = async (sdk, payer, mint) => {
   };
 
   try {
-    console.log("⏳ Mint du token...");
+    console.log("[4] ⏳ Mint du token...");
     const res = await sdk.createAndBuy(
       payer,
       mint,
@@ -63,6 +76,8 @@ const createAndBuyToken = async (sdk, payer, mint) => {
         unitPrice: 250000,
       }
     );
+    console.log("[5] Résultat retour createAndBuy:", res);
+
     if (res.success) {
       console.log("🚀 Mint + buy réussi ! Lien Pump.fun :", `https://pump.fun/${mint.publicKey.toBase58()}`);
       return;
@@ -82,5 +97,35 @@ const createAndBuyToken = async (sdk, payer, mint) => {
   }
 };
 
-// ... main() comme avant
+// =========== MAIN =============
+const main = async () => {
+  console.log("========= [MAIN] Début script ============");
+  try {
+    const provider = getProvider();
+    console.log("[MAIN] Provider prêt");
+    const sdk = new PumpFunSDK(provider);
+    const connection = provider.connection;
+    const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
+    const payer = Keypair.fromSecretKey(secretKey);
+    const mint = Keypair.generate();
 
+    // Affiche solde du wallet principal
+    const sol = await connection.getBalance(payer.publicKey);
+    console.log(`[MAIN] Ton wallet ${payer.publicKey.toBase58()}: ${sol / LAMPORTS_PER_SOL} SOL`);
+    if (sol === 0) {
+      console.log("[MAIN] Please send some SOL to le wallet:", payer.publicKey.toBase58());
+      return;
+    }
+
+    const globalAccount = await sdk.getGlobalAccount();
+    console.log("[MAIN] GlobalAccount:", globalAccount);
+
+    await createAndBuyToken(sdk, payer, mint);
+
+    console.log("========= [MAIN] Fin script ============");
+  } catch (error) {
+    console.error("[MAIN] An error occurred:", error);
+  }
+};
+
+main();
