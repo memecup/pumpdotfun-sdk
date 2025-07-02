@@ -1,66 +1,65 @@
-import dotenv from "dotenv";
+import "dotenv/config";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
-import { AnchorProvider, Wallet as AnchorWallet } from "@coral-xyz/anchor";
-import {
-  PumpFunSDK,
-  DEFAULT_DECIMALS,
-} from "pumpdotfun-repumped-sdk";
-import { getSPLBalance } from "pumpdotfun-repumped-sdk/dist/esm/utils.mjs";
+import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
+import { getSPLBalance, printSOLBalance } from "../../utils.js";
 import fs from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
 
-dotenv.config();
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// --------- CONFIG ---------
+const DEVNET_RPC = process.env.HELIUS_RPC_URL || "https://api.devnet.solana.com";
 const SLIPPAGE_BPS = 100n;
 const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
+const LOGO_PATH = "./example/basic/logo.png"; // Ajoute ce fichier ou retire file: du metadata
 
-async function getProvider() {
-  const conn = new Connection(process.env.HELIUS_RPC_URL!, "finalized");
-  const secret = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
-  const kp = Keypair.fromSecretKey(secret);
-  console.log("🪙 Wallet :", kp.publicKey.toBase58());
-  const wallet = new AnchorWallet(kp);
-  return new AnchorProvider(conn, wallet, { commitment: "finalized" });
-}
+const secret = JSON.parse(process.env.PRIVATE_KEY!);
+const wallet = Keypair.fromSecretKey(Uint8Array.from(secret));
 
+// --------- MAIN ---------
 async function main() {
-  const provider = await getProvider();
-  const sdk = new PumpFunSDK(provider, { priorityFee: PRIORITY_FEE });
-  const conn = provider.connection;
-  const kp = (provider.wallet as AnchorWallet).payer;
-  const mint = Keypair.generate();
+  console.log("========= DEMARRAGE SCRIPT PUMP.FUN =========");
+  const connection = new Connection(DEVNET_RPC, "confirmed");
+  const provider = new AnchorProvider(connection, new Wallet(wallet), {
+    commitment: "confirmed",
+  });
+  const sdk = new PumpFunSDK(provider);
+  const mint = Keypair.generate(); // Nouveau mint
 
-  const solBal = await conn.getBalance(kp.publicKey);
-  console.log("SOL balance:", solBal / LAMPORTS_PER_SOL);
-  if (solBal < 0.0002 * LAMPORTS_PER_SOL) {
-    console.error("Besoin d’au moins ~0.0002 SOL");
-    return;
+  await printSOLBalance(connection, wallet.publicKey, "Ton wallet");
+
+  // --------- Mint + Buy ----------
+  let metadata: any = {
+    name: "MYTOKEN",
+    symbol: "MTK",
+    description: "A demo token.",
+  };
+  if (fs.existsSync(LOGO_PATH)) {
+    const img = fs.readFileSync(LOGO_PATH);
+    metadata.file = new Blob([img], { type: "image/png" });
+    console.log("✅ Image détectée, ajoutée au mint !");
+  } else {
+    console.log("⚠️  Pas d'image trouvée, mint sans logo.");
   }
 
-  // Préparation du blob image
-  const path = join(__dirname, "logo.png");
-  const imgBuf = fs.existsSync(path) ? fs.readFileSync(path) : null;
-  const blob = imgBuf ? new Blob([imgBuf], { type: "image/png" }) : undefined;
-
-  // Création + achat
-  const res = await sdk.trade.createAndBuy(
-    kp,
-    mint,
-    { name: "MY-TST", symbol: "MTST", description: "Test", file: blob },
-    BigInt(0.0001 * LAMPORTS_PER_SOL),
-    SLIPPAGE_BPS,
-    PRIORITY_FEE
-  );
-  console.log(res);
-  if (!res.success) {
-    console.error("Erreur:", res.error?.message || res.error);
-    return;
+  try {
+    console.log("⏳ Mint du token...");
+    await sdk.trade.createAndBuy(
+      wallet,
+      mint,
+      metadata,
+      0.0001 * LAMPORTS_PER_SOL,
+      SLIPPAGE_BPS,
+      PRIORITY_FEE
+    );
+    console.log("🚀 Mint + buy réussi ! Lien Pump.fun :", `https://pump.fun/${mint.publicKey.toBase58()}`);
+  } catch (e) {
+    console.error("Erreur pendant le mint :", e);
   }
 
-  console.log("✅ Mint + buy réussi :", `https://pump.fun/${mint.publicKey.toBase58()}`);
-  const spl = await getSPLBalance(conn, mint.publicKey, kp.publicKey);
-  console.log("Token balance:", spl);
+  // --------- Solde Token ---------
+  const bal = await getSPLBalance(connection, mint.publicKey, wallet.publicKey);
+  console.log("Solde token après buy :", bal);
+
+  await printSOLBalance(connection, wallet.publicKey, "Ton wallet après mint+buy");
 }
 
 main().catch(console.error);
