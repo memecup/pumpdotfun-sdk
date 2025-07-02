@@ -1,7 +1,10 @@
 import dotenv from "dotenv";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Wallet as AnchorWallet } from "@coral-xyz/anchor";
-import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk/dist/esm/index.mjs";
+import {
+  PumpFunSDK,
+  DEFAULT_DECIMALS,
+} from "pumpdotfun-repumped-sdk";
 import { getSPLBalance } from "pumpdotfun-repumped-sdk/dist/esm/utils.mjs";
 import fs from "fs";
 import { dirname, join } from "path";
