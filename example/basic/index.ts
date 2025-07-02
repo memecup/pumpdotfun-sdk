@@ -3,16 +3,14 @@ import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { PumpFunSDK } from "pumpdotfun-sdk";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
-import { dirname, join } from "path";
+import { dirname } from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
 
 dotenv.config();
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SLIPPAGE_BASIS_POINTS = 100n;
-const LOGO_PATH = join(__dirname, "logo.png"); // Mets ici le nom de ton image si besoin
 
 const getProvider = () => {
   if (!process.env.HELIUS_RPC_URL) throw new Error("Please set HELIUS_RPC_URL in .env file");
@@ -25,18 +23,12 @@ const getProvider = () => {
 };
 
 const createAndBuyToken = async (sdk, payer, mint) => {
-  // Construire metadata avec ou sans image
-  let tokenMetadata = {
+  const tokenMetadata = {
     name: "TST-7",
     symbol: "TST-7",
-    description: "TST-7: This is a test token",
-  } as any;
-  if (fs.existsSync(LOGO_PATH)) {
-    tokenMetadata.filePath = LOGO_PATH;
-    console.log("✅ Image trouvée :", LOGO_PATH, "(ajoutée au mint)");
-  } else {
-    console.log("⚠️ Pas d'image, le token sera mint SANS image !");
-  }
+    description: "TST-7: This is a test token"
+    // NE PAS METTRE filePath OU file !
+  };
 
   try {
     console.log("⏳ Mint du token...");
