@@ -1,80 +1,107 @@
-import * as bs58 from "@coral-xyz/anchor/dist/esm/utils/bytes/bs58.js";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { Keypair, PublicKey, Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { sha256 } from "js-sha256";
+import "dotenv/config";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
+import { getSPLBalance, printSOLBalance } from "../util.ts";
 import fs from "fs";
 
-export function getOrCreateKeypair(dir: string, keyName: string): Keypair {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const authorityKey = dir + "/" + keyName + ".json";
-  if (fs.existsSync(authorityKey)) {
-    const data = JSON.parse(fs.readFileSync(authorityKey, "utf-8"));
-    return Keypair.fromSecretKey(bs58.decode(data.secretKey));
-  } else {
-    const keypair = Keypair.generate();
-    fs.writeFileSync(
-      authorityKey,
-      JSON.stringify({
-        secretKey: bs58.encode(keypair.secretKey),
-        publicKey: keypair.publicKey.toBase58(),
-      })
-    );
-    return keypair;
-  }
+console.log("========= DEMARRAGE SCRIPT =========");
+console.log("[DEBUG] process.cwd():", process.cwd());
+console.log("[DEBUG] PRIVATE_KEY =", process.env.PRIVATE_KEY ? "[OK]" : "[NON DEFINI]");
+console.log("[DEBUG] HELIUS_RPC_URL =", process.env.HELIUS_RPC_URL);
+
+const DEVNET_RPC = process.env.HELIUS_RPC_URL || "https://api.devnet.solana.com";
+const SLIPPAGE_BPS = 100n;
+const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
+const LOGO_PATH = "./example/basic/logo.png"; // ou "./example/basic/random.png"
+
+if (!process.env.PRIVATE_KEY || process.env.PRIVATE_KEY === "[]") {
+  throw new Error("PRIVATE_KEY non défini dans le .env !");
 }
 
-export const printSOLBalance = async (
-  connection: Connection,
-  pubKey: PublicKey,
-  info: string = ""
-) => {
-  const balance = await connection.getBalance(pubKey);
-  console.log(
-    `${info ? info + " " : ""}${pubKey.toBase58()}:`,
-    balance / LAMPORTS_PER_SOL,
-    `SOL`
-  );
-};
+let secret: number[] = [];
+try {
+  secret = JSON.parse(process.env.PRIVATE_KEY!);
+} catch (e) {
+  throw new Error("Erreur de parsing du PRIVATE_KEY: " + e);
+}
 
-export const getSPLBalance = async (
-  connection: Connection,
-  mintAddress: PublicKey,
-  pubKey: PublicKey,
-  allowOffCurve: boolean = false
-) => {
+const wallet = Keypair.fromSecretKey(Uint8Array.from(secret));
+
+async function main() {
+  console.log("[1] Connexion à Solana...");
+  const connection = new Connection(DEVNET_RPC, "confirmed");
+  const provider = new AnchorProvider(connection, new Wallet(wallet), { commitment: "confirmed" });
+  const sdk = new PumpFunSDK(provider);
+  const mint = Keypair.generate();
+
+  await printSOLBalance(connection, wallet.publicKey, "user");
+
+  // 1️⃣ create + first buy
+  let logoBlob: Blob | undefined = undefined;
+  if (fs.existsSync(LOGO_PATH)) {
+    const img = await fs.promises.readFile(LOGO_PATH);
+    logoBlob = new Blob([img], { type: "image/png" });
+    console.log(`✅ Logo détecté: ${LOGO_PATH}`);
+  } else {
+    console.log("❌ Aucun logo utilisé (mint sans image)");
+  }
+
+  const meta = {
+    name: "DEV-TEST",
+    symbol: "DVT",
+    description: "Devnet demo",
+    ...(logoBlob ? { file: logoBlob } : {}),
+  };
+
+  console.log("[2] Lancement du mint...");
+  let res: any;
   try {
-    let ata = getAssociatedTokenAddressSync(mintAddress, pubKey, allowOffCurve);
-    const balance = await connection.getTokenAccountBalance(ata, "processed");
-    return balance.value.uiAmount;
-  } catch (e) {}
-  return null;
-};
-
-export const printSPLBalance = async (
-  connection: Connection,
-  mintAddress: PublicKey,
-  user: PublicKey,
-  info: string = ""
-) => {
-  const balance = await getSPLBalance(connection, mintAddress, user);
-  if (balance === null) {
-    console.log(
-      `${info ? info + " " : ""}${user.toBase58()}:`,
-      "No Account Found"
+    res = await sdk.trade.createAndBuy(
+      wallet,
+      mint,
+      meta,
+      0.0001 * LAMPORTS_PER_SOL,
+      SLIPPAGE_BPS,
+      PRIORITY_FEE
     );
-  } else {
-    console.log(`${info ? info + " " : ""}${user.toBase58()}:`, balance);
+  } catch (e) {
+    console.error("[ERREUR createAndBuy]", e);
+    return;
   }
-};
+  if (res && res.success) {
+    console.log("🚀 Mint + buy OK:", `https://pump.fun/${mint.publicKey.toBase58()}?cluster=devnet`);
+  } else {
+    console.log("⛔ Erreur Mint + Buy:", res && res.error ? res.error : res);
+    return;
+  }
 
-export const baseToValue = (base: number, decimals: number): number => {
-  return base * Math.pow(10, decimals);
-};
+  // 2️⃣ second buy
+  try {
+    await sdk.trade.buy(
+      wallet,
+      mint.publicKey,
+      0.0002 * LAMPORTS_PER_SOL,
+      SLIPPAGE_BPS,
+      PRIORITY_FEE
+    );
+    const bal = await getSPLBalance(connection, mint.publicKey, wallet.publicKey);
+    console.log("Token balance:", bal);
 
-export const valueToBase = (value: number, decimals: number): number => {
-  return value / Math.pow(10, decimals);
-};
-
-export function getDiscriminator(name: string) {
-  return sha256.digest(name).slice(0, 8);
+    // 3️⃣ sell all
+    await sdk.trade.sell(
+      wallet,
+      mint.publicKey,
+      BigInt(bal * 10 ** DEFAULT_DECIMALS),
+      SLIPPAGE_BPS,
+      PRIORITY_FEE
+    );
+    await printSOLBalance(connection, wallet.publicKey, "user after sell");
+  } catch (e) {
+    console.error("[ERREUR buy/sell]", e);
+  }
 }
+
+main().catch((err) => {
+  console.error("[MAIN CATCH ERROR]", err);
+});
