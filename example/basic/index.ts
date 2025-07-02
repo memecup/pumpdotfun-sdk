@@ -2,7 +2,7 @@ import "dotenv/config";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
-import { getSPLBalance, printSOLBalance } from "./util.js";
+import { getSPLBalance, printSOLBalance } from "../util.ts";
 import fs from "fs";
 
 const DEVNET_RPC = process.env.HELIUS_RPC_URL || "https://api.devnet.solana.com";
