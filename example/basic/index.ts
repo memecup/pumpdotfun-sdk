@@ -1,83 +1,63 @@
 import dotenv from "dotenv";
-import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { PumpFunSDK } from "pumpdotfun-sdk";
-import { AnchorProvider } from "@coral-xyz/anchor";
-import NodeWalletImport from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
-import { dirname } from "path";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { AnchorProvider, Wallet as AnchorWallet } from "@coral-xyz/anchor";
+import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk/dist/esm/index.mjs";
+import { getSPLBalance } from "pumpdotfun-repumped-sdk/dist/esm/utils.mjs";
+import fs from "fs";
+import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 dotenv.config();
-const NodeWallet = NodeWalletImport.default || NodeWalletImport;
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SLIPPAGE_BASIS_POINTS = 100n;
+const SLIPPAGE_BPS = 100n;
+const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
 
-const getProvider = () => {
-  if (!process.env.HELIUS_RPC_URL) throw new Error("Please set HELIUS_RPC_URL in .env file");
-  const connection = new Connection(process.env.HELIUS_RPC_URL, "finalized");
-  const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
-  const keypair = Keypair.fromSecretKey(secretKey);
-  const wallet = new NodeWallet(keypair);
-  console.log(">>> Adresse Solana (PRIVATE_KEY utilisée) :", keypair.publicKey.toBase58());
-  return new AnchorProvider(connection, wallet, { commitment: "finalized" });
-};
+async function getProvider() {
+  const conn = new Connection(process.env.HELIUS_RPC_URL!, "finalized");
+  const secret = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
+  const kp = Keypair.fromSecretKey(secret);
+  console.log("🪙 Wallet :", kp.publicKey.toBase58());
+  const wallet = new AnchorWallet(kp);
+  return new AnchorProvider(conn, wallet, { commitment: "finalized" });
+}
 
-const createAndBuyToken = async (sdk, payer, mint) => {
-  const tokenMetadata = {
-    name: "TST-7",
-    symbol: "TST-7",
-    description: "TST-7: This is a test token"
-    // NE PAS METTRE filePath OU file !
-  };
+async function main() {
+  const provider = await getProvider();
+  const sdk = new PumpFunSDK(provider, { priorityFee: PRIORITY_FEE });
+  const conn = provider.connection;
+  const kp = (provider.wallet as AnchorWallet).payer;
+  const mint = Keypair.generate();
 
-  try {
-    console.log("⏳ Mint du token...");
-    const res = await sdk.createAndBuy(
-      payer,
-      mint,
-      tokenMetadata,
-      BigInt(0.0001 * LAMPORTS_PER_SOL),
-      SLIPPAGE_BASIS_POINTS,
-      {
-        unitLimit: 250000,
-        unitPrice: 250000,
-      }
-    );
-    if (res.success) {
-      console.log("🚀 Mint + buy réussi ! Lien Pump.fun :", `https://pump.fun/${mint.publicKey.toBase58()}`);
-    } else {
-      console.error("Erreur durant le mint :", res.error || res);
-    }
-  } catch (e) {
-    console.error("Erreur pendant le mint :", e.message || e);
+  const solBal = await conn.getBalance(kp.publicKey);
+  console.log("SOL balance:", solBal / LAMPORTS_PER_SOL);
+  if (solBal < 0.0002 * LAMPORTS_PER_SOL) {
+    console.error("Besoin d’au moins ~0.0002 SOL");
+    return;
   }
-};
 
-const main = async () => {
-  console.log("========= DEMARRAGE SCRIPT PUMP.FUN =========");
-  try {
-    const provider = getProvider();
-    const sdk = new PumpFunSDK(provider);
-    const connection = provider.connection;
-    const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
-    const payer = Keypair.fromSecretKey(secretKey);
-    const mint = Keypair.generate();
+  // Préparation du blob image
+  const path = join(__dirname, "logo.png");
+  const imgBuf = fs.existsSync(path) ? fs.readFileSync(path) : null;
+  const blob = imgBuf ? new Blob([imgBuf], { type: "image/png" }) : undefined;
 
-    const sol = await connection.getBalance(payer.publicKey);
-    console.log(`[MAIN] Ton wallet ${payer.publicKey.toBase58()}: ${sol / LAMPORTS_PER_SOL} SOL`);
-    if (sol === 0) {
-      console.log("Please send some SOL to le wallet:", payer.publicKey.toBase58());
-      return;
-    }
-
-    const globalAccount = await sdk.getGlobalAccount();
-    console.log("[MAIN] GlobalAccount:", globalAccount);
-
-    await createAndBuyToken(sdk, payer, mint);
-  } catch (error) {
-    console.error("An error occurred:", error);
+  // Création + achat
+  const res = await sdk.trade.createAndBuy(
+    kp,
+    mint,
+    { name: "MY-TST", symbol: "MTST", description: "Test", file: blob },
+    BigInt(0.0001 * LAMPORTS_PER_SOL),
+    SLIPPAGE_BPS,
+    PRIORITY_FEE
+  );
+  console.log(res);
+  if (!res.success) {
+    console.error("Erreur:", res.error?.message || res.error);
+    return;
   }
-  console.log("========= [MAIN] Fin script ===========");
-};
 
-main();
+  console.log("✅ Mint + buy réussi :", `https://pump.fun/${mint.publicKey.toBase58()}`);
+  const spl = await getSPLBalance(conn, mint.publicKey, kp.publicKey);
+  console.log("Token balance:", spl);
+}
+
+main().catch(console.error);
