@@ -1,8 +1,8 @@
 {
   "name": "pumpdotfun-repumped-demo",
   "version": "1.0.0",
-  "description": "Demo for pumpdotfun-repumped-sdk",
   "type": "module",
+  "description": "Demo for pumpdotfun-repumped-sdk",
   "main": "./dist/cjs/index.cjs",
   "module": "./dist/esm/index.mjs",
   "types": "./dist/esm/index.d.ts",
@@ -19,8 +19,7 @@
   },
   "scripts": {
     "start": "npx tsx example/basic/index.ts",
-    "example": "tsx example/basic/index.ts",
-    "build": "rimraf dist/ && rollup -c --bundleConfigAsCjs"
+    "example": "tsx example/basic/index.ts"
   },
   "files": [
     "dist"
@@ -37,24 +36,16 @@
   "author": "YourName",
   "license": "MIT",
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^28.0.3",
-    "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^16.0.1",
-    "@rollup/plugin-typescript": "^12.1.2",
     "@tsconfig/node20": "^20.1.5",
     "@types/node": "^20.17.30",
     "dotenv": "^16.4.7",
-    "rimraf": "^6.0.1",
-    "rollup": "^4.38.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.0",
-    "@coral-xyz/borsh": "^0.31.0",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.0",
-    "fetch-blob": "^4.0.0",
     "pumpdotfun-repumped-sdk": "^1.1.2"
   }
 }
