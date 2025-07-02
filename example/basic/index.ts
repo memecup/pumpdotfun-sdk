@@ -2,7 +2,7 @@ import "dotenv/config";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
-import { getSPLBalance, printSOLBalance } from "../../utils.js";
+import { getSPLBalance, printSOLBalance } from "../utils.ts";
 import fs from "fs";
 
 // --------- CONFIG ---------
