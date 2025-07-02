@@ -7,22 +7,16 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 
-// Polyfill File and Blob
-import { File } from "fetch-blob/file.js";
-import { Blob } from "fetch-blob";
-
 dotenv.config();
 const NodeWallet = NodeWalletImport.default || NodeWalletImport;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SLIPPAGE_BASIS_POINTS = 100n;
-const LOGO_PATH = join(__dirname, "logo.png");
-
-// Patch globalThis si besoin
-if (typeof globalThis.File === "undefined") globalThis.File = File;
-if (typeof globalThis.Blob === "undefined") globalThis.Blob = Blob;
+const LOGO_PATH = join(__dirname, "logo.png"); // Mets ici le nom de ton image si besoin
 
 const getProvider = () => {
-  const connection = new Connection(process.env.HELIUS_RPC_URL!, "finalized");
+  if (!process.env.HELIUS_RPC_URL) throw new Error("Please set HELIUS_RPC_URL in .env file");
+  const connection = new Connection(process.env.HELIUS_RPC_URL, "finalized");
   const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
   const keypair = Keypair.fromSecretKey(secretKey);
   const wallet = new NodeWallet(keypair);
@@ -30,112 +24,68 @@ const getProvider = () => {
   return new AnchorProvider(connection, wallet, { commitment: "finalized" });
 };
 
-// Fonction test pour toutes les méthodes de file/image
-const testAllImageCases = async (sdk, payer, mint) => {
-  let fileBuffer = undefined;
-  let nodeFile = undefined;
-  let nodeBlob = undefined;
-  let base64String = undefined;
-
+const createAndBuyToken = async (sdk, payer, mint) => {
+  // Construire metadata avec ou sans image
+  let tokenMetadata = {
+    name: "TST-7",
+    symbol: "TST-7",
+    description: "TST-7: This is a test token",
+  } as any;
   if (fs.existsSync(LOGO_PATH)) {
-    fileBuffer = fs.readFileSync(LOGO_PATH);
-    nodeFile = new File([fileBuffer], "logo.png", { type: "image/png" });
-    nodeBlob = new Blob([fileBuffer], { type: "image/png" });
-    base64String = fileBuffer.toString("base64");
-    console.log("✅ Image détectée, on teste toutes les méthodes...");
+    tokenMetadata.filePath = LOGO_PATH;
+    console.log("✅ Image trouvée :", LOGO_PATH, "(ajoutée au mint)");
   } else {
-    console.log("❌ Pas de logo.png, certains tests seront ignorés.");
+    console.log("⚠️ Pas d'image, le token sera mint SANS image !");
   }
 
-  // --- CAS A: Sans image ---
-  const A = { name: "TST-NOIMG", symbol: "NOIMG", description: "A: Sans image" };
-
-  // --- CAS B: filePath ---
-  const B = fileBuffer ? {
-    name: "TST-FILEPATH", symbol: "FPATH", description: "B: Avec filePath", filePath: LOGO_PATH
-  } : undefined;
-
-  // --- CAS C: File node ---
-  const C = nodeFile ? {
-    name: "TST-NODEFILE", symbol: "NFILE", description: "C: Avec File node", file: nodeFile
-  } : undefined;
-
-  // --- CAS D: Buffer node ---
-  const D = fileBuffer ? {
-    name: "TST-BUFFER", symbol: "BUFF", description: "D: Buffer node", file: fileBuffer
-  } : undefined;
-
-  // --- CAS E: Blob node ---
-  const E = nodeBlob ? {
-    name: "TST-BLOB", symbol: "NBLOB", description: "E: Blob node", file: nodeBlob
-  } : undefined;
-
-  // --- CAS F: Base64 string (pour rigoler) ---
-  const F = base64String ? {
-    name: "TST-B64", symbol: "B64", description: "F: Base64 string", file: base64String
-  } : undefined;
-
-  // Table des essais à jouer
-  const testCases = [
-    ["A (no image)", A],
-    ["B (filePath)", B],
-    ["C (File node)", C],
-    ["D (Buffer node)", D],
-    ["E (Blob node)", E],
-    ["F (base64 string)", F]
-  ].filter(([_, obj]) => obj); // Retirer les cas sans image si pas de logo.png
-
-  for (const [label, meta] of testCases) {
-    console.log("\n======= TEST", label, "=======");
-    try {
-      const mintTest = Keypair.generate();
-      const res = await sdk.createAndBuy(
-        payer,
-        mintTest,
-        meta,
-        BigInt(0.0001 * LAMPORTS_PER_SOL),
-        SLIPPAGE_BASIS_POINTS,
-        {
-          unitLimit: 250000,
-          unitPrice: 250000,
-        }
-      );
-      if (res.success) {
-        console.log(`[${label}] ✅ Mint réussi:`, `https://pump.fun/${mintTest.publicKey.toBase58()}`);
-      } else {
-        console.error(`[${label}] ❌ Echec:`, res.error?.message || res.error || res);
+  try {
+    console.log("⏳ Mint du token...");
+    const res = await sdk.createAndBuy(
+      payer,
+      mint,
+      tokenMetadata,
+      BigInt(0.0001 * LAMPORTS_PER_SOL),
+      SLIPPAGE_BASIS_POINTS,
+      {
+        unitLimit: 250000,
+        unitPrice: 250000,
       }
-    } catch (e) {
-      console.error(`[${label}] Exception:`, e.message || e);
+    );
+    if (res.success) {
+      console.log("🚀 Mint + buy réussi ! Lien Pump.fun :", `https://pump.fun/${mint.publicKey.toBase58()}`);
+    } else {
+      console.error("Erreur durant le mint :", res.error || res);
     }
+  } catch (e) {
+    console.error("Erreur pendant le mint :", e.message || e);
   }
 };
 
 const main = async () => {
+  console.log("========= DEMARRAGE SCRIPT PUMP.FUN =========");
   try {
-    console.log("\n========= [MAIN] Début script TEST FILES ===========");
     const provider = getProvider();
     const sdk = new PumpFunSDK(provider);
+    const connection = provider.connection;
     const secretKey = Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!));
     const payer = Keypair.fromSecretKey(secretKey);
+    const mint = Keypair.generate();
 
-    // Affiche solde du wallet principal
-    const sol = await provider.connection.getBalance(payer.publicKey);
+    const sol = await connection.getBalance(payer.publicKey);
     console.log(`[MAIN] Ton wallet ${payer.publicKey.toBase58()}: ${sol / LAMPORTS_PER_SOL} SOL`);
     if (sol === 0) {
       console.log("Please send some SOL to le wallet:", payer.publicKey.toBase58());
       return;
     }
 
-    // Global account pour log
     const globalAccount = await sdk.getGlobalAccount();
     console.log("[MAIN] GlobalAccount:", globalAccount);
 
-    await testAllImageCases(sdk, payer, Keypair.generate());
-    console.log("\n========= [MAIN] Fin script ===========");
+    await createAndBuyToken(sdk, payer, mint);
   } catch (error) {
-    console.error("[MAIN] Fatal error:", error);
+    console.error("An error occurred:", error);
   }
+  console.log("========= [MAIN] Fin script ===========");
 };
 
 main();
