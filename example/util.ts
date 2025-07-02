@@ -1,27 +1,18 @@
 import * as bs58 from "@coral-xyz/anchor/dist/esm/utils/bytes/bs58.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import {
-  Keypair,
-  PublicKey,
-  Connection,
-  LAMPORTS_PER_SOL,
-} from "@solana/web3.js";
+import { Keypair, PublicKey, Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { sha256 } from "js-sha256";
-
 import fs from "fs";
 
+// Génère ou récupère un keypair sur disque
 export function getOrCreateKeypair(dir: string, keyName: string): Keypair {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const authorityKey = dir + "/" + keyName + ".json";
   if (fs.existsSync(authorityKey)) {
-    const data: {
-      secretKey: string;
-      publicKey: string;
-    } = JSON.parse(fs.readFileSync(authorityKey, "utf-8"));
+    const data = JSON.parse(fs.readFileSync(authorityKey, "utf-8"));
     return Keypair.fromSecretKey(bs58.decode(data.secretKey));
   } else {
     const keypair = Keypair.generate();
-    keypair.secretKey;
     fs.writeFileSync(
       authorityKey,
       JSON.stringify({
@@ -77,15 +68,6 @@ export const printSPLBalance = async (
   }
 };
 
-export const baseToValue = (base: number, decimals: number): number => {
-  return base * Math.pow(10, decimals);
-};
-
-export const valueToBase = (value: number, decimals: number): number => {
-  return value / Math.pow(10, decimals);
-};
-
-//i.e. account:BondingCurve
 export function getDiscriminator(name: string) {
   return sha256.digest(name).slice(0, 8);
 }
