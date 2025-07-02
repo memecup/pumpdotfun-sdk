@@ -1,51 +1,33 @@
 {
   "name": "pumpdotfun-repumped-demo",
   "version": "1.0.0",
-  "type": "module",
   "description": "Demo for pumpdotfun-repumped-sdk",
-  "main": "./dist/cjs/index.cjs",
-  "module": "./dist/esm/index.mjs",
-  "types": "./dist/esm/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/esm/index.d.ts",
-      "import": "./dist/esm/index.mjs",
-      "require": "./dist/cjs/index.cjs",
-      "default": "./dist/esm/index.mjs"
-    }
-  },
-  "engines": {
-    "node": ">=20.9.0"
-  },
+  "type": "module",
+  "main": "example/basic/index.ts",
   "scripts": {
     "start": "npx tsx example/basic/index.ts",
-    "example": "tsx example/basic/index.ts"
+    "dev": "npx tsx watch example/basic/index.ts"
   },
-  "files": [
-    "dist"
-  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/rckprtr/pumpdotfun-sdk.git"
+    "url": "https://github.com/kalli/pumpdotfun-repumped-sdk.git"
   },
   "keywords": [
     "pumpdotfun",
-    "sdk",
-    "solana"
+    "solana",
+    "sdk"
   ],
   "author": "YourName",
   "license": "MIT",
-  "devDependencies": {
-    "@tsconfig/node20": "^20.1.5",
-    "@types/node": "^20.17.30",
-    "dotenv": "^16.4.7",
-    "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
-  },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.0",
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.98.2",
     "@solana/spl-token": "^0.4.13",
-    "@solana/web3.js": "^1.98.0",
-    "pumpdotfun-repumped-sdk": "^1.1.2"
+    "dotenv": "^16.5.0",
+    "pumpdotfun-repumped-sdk": "^1.1.4",
+    "js-sha256": "^0.11.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
   }
 }
