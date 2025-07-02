@@ -55,6 +55,6 @@
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.0",
     "fetch-blob": "^4.0.0",
-    "pumpdotfun-repumped-sdk": "^1.1.2"    // ← LA NOUVELLE DÉPENDANCE
+    "pumpdotfun-repumped-sdk": "^1.1.2"
   }
 }
