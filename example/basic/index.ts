@@ -1,16 +1,8 @@
 import "dotenv/config";
-import {
-  Connection,
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-} from "@solana/web3.js";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
-import {
-  getSPLBalance,
-  printSOLBalance,
-} from "../util.ts";
+import { getSPLBalance, printSOLBalance } from "../util.ts";
 import fs from "fs";
 
 console.log("========= DEMARRAGE SCRIPT =========");
@@ -18,149 +10,105 @@ console.log("[DEBUG] process.cwd():", process.cwd());
 console.log("[DEBUG] PRIVATE_KEY_CREATOR =", process.env.PRIVATE_KEY_CREATOR ? "[OK]" : "[ABSENT]");
 console.log("[DEBUG] HELIUS_RPC_URL =", process.env.HELIUS_RPC_URL);
 
-const DEVNET_RPC =
-  process.env.HELIUS_RPC_URL || "https://api.devnet.solana.com";
+const DEVNET_RPC = process.env.HELIUS_RPC_URL || "https://api.devnet.solana.com";
 const SLIPPAGE_BPS = 100n;
 const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
 const LOGO_PATH = "./example/basic/logo.png";
 
-// 🔐 Charge les wallets depuis les variables .env
 function loadWallet(envVar: string): Keypair {
-  const secret = JSON.parse(envVar);
-  return Keypair.fromSecretKey(Uint8Array.from(secret));
+  const key = JSON.parse(process.env[envVar]!);
+  return Keypair.fromSecretKey(Uint8Array.from(key));
 }
 
-const CREATOR_KEY = process.env.PRIVATE_KEY_CREATOR!;
-const TREND_KEY = process.env.PRIVATE_KEY_TRENDING!;
-const BUYER_KEYS = [
-  process.env.PRIVATE_KEY_BUYER2!,
-  process.env.PRIVATE_KEY_BUYER3!,
-  process.env.PRIVATE_KEY_BUYER4!,
-  process.env.PRIVATE_KEY_BUYER5!,
-  process.env.PRIVATE_KEY_BUYER6!,
-  process.env.PRIVATE_KEY_BUYER7!,
+const wallets: { name: string; keypair: Keypair; amount: number }[] = [
+  { name: "CREATOR", keypair: loadWallet("PRIVATE_KEY_CREATOR"), amount: 0.003 },
+  { name: "BUYER2", keypair: loadWallet("PRIVATE_KEY_BUYER2"), amount: 0.0007 },
+  { name: "BUYER3", keypair: loadWallet("PRIVATE_KEY_BUYER3"), amount: 0.0002 },
+  { name: "BUYER4", keypair: loadWallet("PRIVATE_KEY_BUYER4"), amount: 0.0006 },
+  { name: "BUYER5", keypair: loadWallet("PRIVATE_KEY_BUYER5"), amount: 0.0004 },
+  { name: "BUYER6", keypair: loadWallet("PRIVATE_KEY_BUYER6"), amount: 0.0003 },
+  { name: "BUYER7", keypair: loadWallet("PRIVATE_KEY_BUYER7"), amount: 0.0002 },
 ];
 
+const trendWallet = loadWallet("PRIVATE_KEY_TRENDING");
+
 async function main() {
-  console.log("[1] Connexion à Solana...");
   const connection = new Connection(DEVNET_RPC, "confirmed");
-  const provider = new AnchorProvider(connection, new Wallet(loadWallet(CREATOR_KEY)), {
-    commitment: "confirmed",
-  });
-  const sdk = new PumpFunSDK(provider);
   const mint = Keypair.generate();
+  const creator = wallets[0];
+  const provider = new AnchorProvider(connection, new Wallet(creator.keypair), { commitment: "confirmed" });
+  const sdk = new PumpFunSDK(provider);
 
-  await printSOLBalance(connection, loadWallet(CREATOR_KEY).publicKey, "creator");
+  const sol = await connection.getBalance(creator.keypair.publicKey);
+  const solAmount = sol / LAMPORTS_PER_SOL;
+  if (solAmount < 0.1) {
+    console.log("❌ Le wallet créateur n'a pas assez de SOL.");
+    return;
+  }
 
-  // Logo
-  let logoBlob = undefined;
+  await printSOLBalance(connection, creator.keypair.publicKey, "Wallet Créateur");
+
+  let logoBlob;
   if (fs.existsSync(LOGO_PATH)) {
     const img = await fs.promises.readFile(LOGO_PATH);
     logoBlob = new Blob([img], { type: "image/png" });
     console.log(`✅ Logo détecté: ${LOGO_PATH}`);
-  } else {
-    console.log("❌ Aucun logo utilisé (mint sans image)");
   }
 
   const meta = {
     name: "MOON 🌕🚀",
     symbol: "MOON",
     description:
-      "To the moon with $MOON 🌕🚀\nThe community-driven token that shines the brightest!\n\n📱 Website: https://moontoken.xyz\n💬 Telegram: https://t.me/moontoken\n🐦 Twitter: https://twitter.com/moontoken",
+      `Le token qui vise la Lune 🌕🚀\n\n🔥 100% décentralisé\n🌍 Propulsé par la communauté\n🚨 Aucune taxe\n\nWebsite: https://moontoken.xyz\n💬 Telegram: https://t.me/moontoken\n🐦 Twitter: https://twitter.com/moontoken`,
     ...(logoBlob ? { file: logoBlob } : {}),
   };
 
-  // 1️⃣ Création + premier achat
-  console.log("[2] Mint et premier achat...");
-  try {
-    const res = await sdk.trade.createAndBuy(
-      loadWallet(CREATOR_KEY),
-      mint,
-      meta,
-      BigInt(Math.floor(0.003 * LAMPORTS_PER_SOL)), // BUY 1
-      SLIPPAGE_BPS,
-      PRIORITY_FEE
-    );
-    if (res.success) {
-      console.log("🚀 Mint OK:", `https://pump.fun/${mint.publicKey.toBase58()}?cluster=devnet`);
-    } else {
-      console.log("⛔ Erreur Mint + Buy:", res.error);
-      return;
-    }
-  } catch (e) {
-    console.log("[ERREUR createAndBuy]", e);
-    return;
-  }
-
-  // 2️⃣ Achats par les autres wallets
-  const amounts = [0.0007, 0.0002, 0.0006, 0.0003, 0.0004, 0.0005]; // En SOL
-  for (let i = 0; i < BUYER_KEYS.length; i++) {
-    const wallet = loadWallet(BUYER_KEYS[i]);
-    try {
-      await sdk.trade.buy(
-        wallet,
-        mint.publicKey,
-        BigInt(Math.floor(amounts[i] * LAMPORTS_PER_SOL)),
-        SLIPPAGE_BPS,
-        PRIORITY_FEE
-      );
-      console.log(`✅ BUY wallet ${i + 2}: ${amounts[i]} SOL`);
-    } catch (e) {
-      console.log(`⛔ Erreur BUY wallet ${i + 2}:`, e);
-    }
-    await new Promise((r) => setTimeout(r, 500)); // petite pause entre les buys
-  }
-
-  const bal = await getSPLBalance(
-    connection,
-    mint.publicKey,
-    loadWallet(CREATOR_KEY).publicKey
+  console.log("[1] Mint + premier buy (creator)...");
+  const res = await sdk.trade.createAndBuy(
+    creator.keypair,
+    mint,
+    meta,
+    BigInt(Math.floor(creator.amount * LAMPORTS_PER_SOL)),
+    SLIPPAGE_BPS,
+    PRIORITY_FEE
   );
-  console.log("Token balance (creator):", bal);
+  if (!res.success) return console.log("⛔ Erreur Mint:", res.error);
+  console.log("✅ Mint OK:", `https://pump.fun/${mint.publicKey.toBase58()}?cluster=devnet`);
 
-  // 3️⃣ SELL all (du creator uniquement)
-  try {
-    await sdk.trade.sell(
-      loadWallet(CREATOR_KEY),
-      mint.publicKey,
-      BigInt(Math.floor(Number(bal) * 10 ** DEFAULT_DECIMALS)),
-      SLIPPAGE_BPS,
-      PRIORITY_FEE
-    );
-    await printSOLBalance(connection, loadWallet(CREATOR_KEY).publicKey, "creator after sell");
-  } catch (e) {
-    console.log("[ERREUR sell]", e);
-  }
-
-  // 4️⃣ Trending buys toutes les minutes (jusqu’à 0.005 SOL cumulés)
-  const trendingWallet = loadWallet(TREND_KEY);
-  let trendingBuyCount = 0;
-  const TRENDING_BUY_AMOUNT = 0.001;
-  const TRENDING_MAX_TOTAL = 0.005;
-  const TRENDING_INTERVAL = 60_000;
-
-  const trendingInterval = setInterval(async () => {
-    const totalSpent = TRENDING_BUY_AMOUNT * (trendingBuyCount + 1);
-    if (totalSpent > TRENDING_MAX_TOTAL) {
-      console.log("✅ Plafond des achats tendance atteint (0.005 SOL). Arrêt.");
-      clearInterval(trendingInterval);
-      return;
-    }
-
+  for (let i = 1; i < wallets.length; i++) {
+    const w = wallets[i];
     try {
+      console.log(`👉 [${w.name}] buy ${w.amount} SOL...`);
       await sdk.trade.buy(
-        trendingWallet,
+        w.keypair,
         mint.publicKey,
-        BigInt(Math.floor(TRENDING_BUY_AMOUNT * LAMPORTS_PER_SOL)),
+        BigInt(Math.floor(w.amount * LAMPORTS_PER_SOL)),
         SLIPPAGE_BPS,
         PRIORITY_FEE
       );
-      trendingBuyCount++;
-      console.log(`🔥 Trending buy #${trendingBuyCount} (cumul: ${totalSpent.toFixed(3)} SOL)`);
     } catch (e) {
-      console.error("❌ Trending buy error:", e);
+      console.log(`[ERREUR buy ${w.name}]`, e);
     }
-  }, TRENDING_INTERVAL);
+  }
+
+  // Trending bot every minute (ex: 0.001 SOL max)
+  setInterval(async () => {
+    try {
+      await sdk.trade.buy(
+        trendWallet,
+        mint.publicKey,
+        BigInt(Math.floor(0.001 * LAMPORTS_PER_SOL)),
+        SLIPPAGE_BPS,
+        PRIORITY_FEE
+      );
+      console.log("🔥 Trending buy (0.001 SOL)");
+    } catch (e) {
+      console.log("[ERREUR trending buy]", e);
+    }
+  }, 60_000);
+
+  const bal = await getSPLBalance(connection, mint.publicKey, creator.keypair.publicKey);
+  console.log("Token balance:", bal);
 }
 
 main().catch(console.error);
