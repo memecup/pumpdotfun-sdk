@@ -46,7 +46,7 @@ async function main() {
   // Load wallets
   const creator = loadWallet("PRIVATE_KEY_CREATOR", "creator");
   const trending = loadWallet("PRIVATE_KEY_TRENDING", "trending");
-  const buyers = [2, 3, 4, 5, 6, 7, 8].map((i) =>
+  const buyers = [2, 3, 4, 5, 6, 7].map((i) =>
     loadWallet(`PRIVATE_KEY_BUYER${i}`, `buyer${i}`)
   );
 
