@@ -1,26 +1,15 @@
 import "dotenv/config";
-import fs from "fs";
-import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
-import { getSPLBalance, printSOLBalance } from "../util.ts";
+import { PumpFunSDK } from "pumpdotfun-repumped-sdk";
+import { printSOLBalance } from "../util.ts";
 
+// === PARAMÈTRES ===
 const RPC_URL = process.env.HELIUS_RPC_URL!;
 const SLIPPAGE_BPS = 300n;
 const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
-const LOGO_PATH = "./example/basic/us.png";
-const TOKEN_NAME = "$USA";
-const TOKEN_SYMBOL = "USA";
-const TOKEN_DESC = `USA storms into the Memecup! 🇺🇸  
-🗽 Land of boldness, memes, moonshots, and liberty.  
-🚀 Can $USA lead the charge and dominate the podium?  
-Let’s rally the eagles, bring the energy, and light up the charts.  
-🌎 United for the win, together to the top!
-🏆 https://memecup.ovh
-💬 Telegram: https://t.me/memecup44
-🔗 X: https://x.com/memecupofficial`;
 
-const BUY_AMOUNTS_SOL = [2, 1.14, 1.125, 1.115, 1.11, 1.105, 1.105];
+const MINT_ADDRESS = "BPTvvQqtDGacQcgC2kMsBLyHAGpHtARMtmzhV3a4U4Mh"; // <- CONTRAT $USA
 
 function loadWallet(envVar: string, label: string): Keypair | null {
   try {
@@ -41,88 +30,55 @@ async function delay(ms: number) {
 }
 
 async function main() {
-  console.log("========= DEMARRAGE SCRIPT USA =========");
+  console.log("========= MEMECUP TRENDING BOT =========");
   const connection = new Connection(RPC_URL, "confirmed");
-
-  const creator = loadWallet("PRIVATE_KEY_CREATOR", "creator");
   const trending = loadWallet("PRIVATE_KEY_TRENDING", "trending");
-  const buyers = [2, 3, 4, 5, 6, 7]
-    .map((i) => loadWallet(`PRIVATE_KEY_BUYER${i}`, `buyer${i}`))
-    .filter(Boolean) as Keypair[];
 
-  if (!creator || !trending) {
-    console.error("❌ Wallet creator ou trending invalide. Arrêt.");
+  if (!trending) {
+    console.error("❌ Wallet trending invalide. Arrêt.");
     return;
   }
 
-  const provider = new AnchorProvider(connection, new Wallet(creator), {
+  const provider = new AnchorProvider(connection, new Wallet(trending), {
     commitment: "confirmed",
   });
   const sdk = new PumpFunSDK(provider);
 
-  await printSOLBalance(connection, creator.publicKey, "creator");
+  await printSOLBalance(connection, trending.publicKey, "trending");
 
-  let logoBlob = undefined;
-  if (fs.existsSync(LOGO_PATH)) {
-    const img = await fs.promises.readFile(LOGO_PATH);
-    logoBlob = new Blob([img], { type: "image/png" });
-    console.log(`✅ Logo détecté: ${LOGO_PATH}`);
-  } else {
-    console.log("❌ Aucun logo utilisé.");
-  }
+  const mint = new PublicKey(MINT_ADDRESS);
 
-  const meta = {
-    name: TOKEN_NAME,
-    symbol: TOKEN_SYMBOL,
-    description: TOKEN_DESC,
-    ...(logoBlob ? { file: logoBlob } : {}),
-  };
+  const start = Date.now();
+  const end = start + 24 * 60 * 60 * 1000; // 24h
 
-  const mint = Keypair.generate();
-  const firstBuyLamports = BigInt(Math.floor(BUY_AMOUNTS_SOL[0] * LAMPORTS_PER_SOL));
-  console.log("[2] Lancement du mint...");
-  const res = await sdk.trade.createAndBuy(creator, mint, meta, firstBuyLamports, SLIPPAGE_BPS, PRIORITY_FEE);
+  while (Date.now() < end) {
+    const elapsed = Date.now() - start;
+    let interval = 180_000; // 3 min défaut
+    let amount = 0.0055;
 
-  if (!res.success) {
-    console.error("⛔ Mint échoué:", res.error);
-    return;
-  }
+    if (elapsed < 60 * 60 * 1000) {
+      interval = 30_000;
+      amount = 0.01;
+    } else if (elapsed < 6 * 60 * 60 * 1000) {
+      interval = 90_000;
+      amount = 0.0075;
+    } else if (elapsed >= 18 * 60 * 60 * 1000) {
+      interval = 120_000;
+      amount = 0.01;
+    }
 
-  console.log("🚀 Mint + Buy OK:", `https://pump.fun/${mint.publicKey.toBase58()}`);
-  const bal = await getSPLBalance(connection, mint.publicKey, creator.publicKey);
-  console.log("🎯 Balance tokens (creator):", bal);
-
-  for (let i = 0; i < buyers.length; i++) {
-    const buyer = buyers[i];
-    const amount = BigInt(Math.floor(BUY_AMOUNTS_SOL[i + 1] * LAMPORTS_PER_SOL));
     try {
-      await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
-      console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
+      const lamports = BigInt(Math.floor(amount * LAMPORTS_PER_SOL));
+      await sdk.trade.buy(trending, mint, lamports, SLIPPAGE_BPS, PRIORITY_FEE);
+      console.log(`🔥 Trending buy @${amount} SOL from ${trending.publicKey.toBase58()}`);
     } catch (e) {
-      console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
+      console.error("⛔ Trending buy failed:", e.message || e);
     }
-    await delay(150); // Delay important pour ne pas faire tous les achats en même milliseconde
+    await delay(interval);
+    const h = ((Date.now() - start) / 3600000).toFixed(2);
+    console.log(`⏳ Trending: ${h}h / 24h`);
   }
-
-  // ====== TRENDING LOOP ACTIVÉE ======
-  async function trendingLoop() {
-    const start = Date.now();
-    const durationMs = 60 * 60 * 1000; // Ex : trending pendant 1h (change comme tu veux)
-    while (Date.now() - start < durationMs) {
-      const amount = 0.005; // Tu peux modifier ici la dose pour le trending
-      try {
-        const lamports = BigInt(Math.floor(amount * LAMPORTS_PER_SOL));
-        await sdk.trade.buy(trending, mint.publicKey, lamports, SLIPPAGE_BPS, PRIORITY_FEE);
-        console.log(`🔥 Trending buy @${amount} SOL from ${trending.publicKey.toBase58()}`);
-      } catch (e) {
-        console.error("⛔ Trending buy failed:", e.message || e);
-      }
-      await delay(90_000); // 1 trending toutes les 1min30 (ajuste si besoin)
-    }
-    console.log(`⏹️ Trending terminé après 1h.`);
-  }
-
-  await trendingLoop();
+  console.log("⏹️ Trending terminé après 24h.");
 }
 
 main().catch(console.error);
