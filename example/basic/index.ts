@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 import fs from "fs";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
@@ -12,16 +11,17 @@ const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
 const LOGO_PATH = "./example/basic/cn.png";
 const TOKEN_NAME = "$CHN";
 const TOKEN_SYMBOL = "CHN";
-const TOKEN_DESC = `China awakens for Memecup!
-🐉 The dragon stirs — can $CHN seize the lead with relentless energy?
-Discipline. Speed. Power. Let’s show the world how it’s done!
-Unite your friends, ignite the charts.
-🏆 https://memecup.ovh
-💬 Telegram: https://t.me/memecup44
+const TOKEN_DESC = `China steps onto the field! 🇨🇳
+🐉 A billion voices strong, the dragon rises.
+Will $CHN lead the charge and dominate the Memecup?
+🚀 Power, strategy, and endless ambition fuel this nation.
+Join the rally, support the dragon, and rise together!
+🏆 https://memecup.ovh  
+💬 Telegram: https://t.me/memecup44  
 🔗 X: https://x.com/memecupofficial`;
 
 const TRENDING_INTERVAL_MS = 60_000;
-const TRENDING_AMOUNT_SOL = 0.005;
+const TRENDING_AMOUNT_SOL = 0.001;
 const MAX_TRENDING_SOL = 0.005;
 const MAX_TRENDING_MINUTES = 0;
 const BUY_AMOUNTS_SOL = [0.3, 0.14, 0.125, 0.115, 0.11, 0.105, 0.105];
@@ -103,7 +103,7 @@ async function main() {
       await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
       console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
     } catch (e) {
-      console.error(`⛔ Buy ${i + 2} erreur:", e.message || e);
+      console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
     }
   }
 
