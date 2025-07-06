@@ -8,22 +8,19 @@ import { getSPLBalance, printSOLBalance } from "../util.ts";
 const RPC_URL = process.env.HELIUS_RPC_URL!;
 const SLIPPAGE_BPS = 300n;
 const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
-const LOGO_PATH = "./example/basic/ar.png";
-const TOKEN_NAME = "$ARG";
-const TOKEN_SYMBOL = "ARG";
-const TOKEN_DESC = `Argentina charges into Memecup! 🇦🇷  
-💃 From Buenos Aires to the blockchain — can $ARG bring passion to the podium?  
-🔥 Vibrance, strength, unity. The blue & white wave is rising. 🌊  
-🎶 Join the tango, buy the dream, let’s make history!  
-🏆 https://memecup.ovh  
-💬 Telegram: https://t.me/memecup44  
+const LOGO_PATH = "./example/basic/us.png";
+const TOKEN_NAME = "$USA";
+const TOKEN_SYMBOL = "USA";
+const TOKEN_DESC = `USA storms into the Memecup! 🇺🇸  
+🗽 Land of boldness, memes, moonshots, and liberty.  
+🚀 Can $USA lead the charge and dominate the podium?  
+Let’s rally the eagles, bring the energy, and light up the charts.  
+🌎 United for the win, together to the top!
+🏆 https://memecup.ovh
+💬 Telegram: https://t.me/memecup44
 🔗 X: https://x.com/memecupofficial`;
 
-const TRENDING_INTERVAL_MS = 60_000;
-const TRENDING_AMOUNT_SOL = 0.005;
-const MAX_TRENDING_SOL = 0.005;
-const MAX_TRENDING_MINUTES = 0;
-const BUY_AMOUNTS_SOL = [0.3, 0.14, 0.125, 0.115, 0.11, 0.105, 0.105];
+const BUY_AMOUNTS_SOL = [2, 1.14, 1.125, 1.115, 1.11, 1.105, 1.105];
 
 function loadWallet(envVar: string, label: string): Keypair | null {
   try {
@@ -44,7 +41,7 @@ async function delay(ms: number) {
 }
 
 async function main() {
-  console.log("========= DEMARRAGE SCRIPT ARG =========");
+  console.log("========= DEMARRAGE SCRIPT USA =========");
   const connection = new Connection(RPC_URL, "confirmed");
 
   const creator = loadWallet("PRIVATE_KEY_CREATOR", "creator");
@@ -104,14 +101,15 @@ async function main() {
     } catch (e) {
       console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
     }
-    await delay(150); // 150ms delay entre chaque achat
+    await delay(150); // Delay important pour ne pas faire tous les achats en même milliseconde
   }
 
+  // ====== TRENDING LOOP ACTIVÉE ======
   async function trendingLoop() {
     const start = Date.now();
-    const durationMs = MAX_TRENDING_MINUTES * 60_000;
+    const durationMs = 60 * 60 * 1000; // Ex : trending pendant 1h (change comme tu veux)
     while (Date.now() - start < durationMs) {
-      const amount = Math.min(TRENDING_AMOUNT_SOL, MAX_TRENDING_SOL);
+      const amount = 0.005; // Tu peux modifier ici la dose pour le trending
       try {
         const lamports = BigInt(Math.floor(amount * LAMPORTS_PER_SOL));
         await sdk.trade.buy(trending, mint.publicKey, lamports, SLIPPAGE_BPS, PRIORITY_FEE);
@@ -119,9 +117,9 @@ async function main() {
       } catch (e) {
         console.error("⛔ Trending buy failed:", e.message || e);
       }
-      await delay(TRENDING_INTERVAL_MS);
+      await delay(90_000); // 1 trending toutes les 1min30 (ajuste si besoin)
     }
-    console.log(`⏹️ Trending terminé après ${MAX_TRENDING_MINUTES} minute(s).`);
+    console.log(`⏹️ Trending terminé après 1h.`);
   }
 
   await trendingLoop();
