@@ -2,33 +2,28 @@ import "dotenv/config";
 import fs from "fs";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import { PumpFunSDK } from "pumpdotfun-repumped-sdk";
+import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
 import { getSPLBalance, printSOLBalance } from "../util.ts";
 
 const RPC_URL = process.env.HELIUS_RPC_URL!;
-const SLIPPAGE_BPS = 350n;
-const PRIORITY_FEE = { unitLimit: 350_000, unitPrice: 400_000 };
-const LOGO_PATH = "./example/basic/br.png";
-const TOKEN_NAME = "$BRA";
-const TOKEN_SYMBOL = "BRA";
-
-// Description complète Brésil
-const TOKEN_DESC = `Brazil brings the heat! 🇧🇷
-
-⚽️ From the beaches of Copacabana to the heart of the Amazon, Brazil is a land of champions, rhythm, and unstoppable energy.
-💃 Samba, football, and a carnival spirit — can $BRA score big in the Memecup?
-🔥 The Selecao is in! Join the green and yellow, bring the party, pump for Brazil!
-
-Join the celebration, bring the color, pump for Brazil!
+const SLIPPAGE_BPS = 300n;
+const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
+const LOGO_PATH = "./example/basic/ar.png";
+const TOKEN_NAME = "$ARG";
+const TOKEN_SYMBOL = "ARG";
+const TOKEN_DESC = `Argentina charges into Memecup! 🇦🇷  
+💃 From Buenos Aires to the blockchain — can $ARG bring passion to the podium?  
+🔥 Vibrance, strength, unity. The blue & white wave is rising. 🌊  
+🎶 Join the tango, buy the dream, let’s make history!  
 🏆 https://memecup.ovh  
 💬 Telegram: https://t.me/memecup44  
 🔗 X: https://x.com/memecupofficial`;
 
 const TRENDING_INTERVAL_MS = 60_000;
-const TRENDING_AMOUNT_SOL = 0.003;
-const MAX_TRENDING_SOL = 0.006;
+const TRENDING_AMOUNT_SOL = 0.005;
+const MAX_TRENDING_SOL = 0.005;
 const MAX_TRENDING_MINUTES = 0;
-const BUY_AMOUNTS_SOL = [0.305, 0.143, 0.126, 0.118, 0.112, 0.108, 0.106];
+const BUY_AMOUNTS_SOL = [0.3, 0.14, 0.125, 0.115, 0.11, 0.105, 0.105];
 
 function loadWallet(envVar: string, label: string): Keypair | null {
   try {
@@ -49,7 +44,7 @@ async function delay(ms: number) {
 }
 
 async function main() {
-  console.log("========= DEMARRAGE SCRIPT =========");
+  console.log("========= DEMARRAGE SCRIPT ARG =========");
   const connection = new Connection(RPC_URL, "confirmed");
 
   const creator = loadWallet("PRIVATE_KEY_CREATOR", "creator");
@@ -100,18 +95,17 @@ async function main() {
   const bal = await getSPLBalance(connection, mint.publicKey, creator.publicKey);
   console.log("🎯 Balance tokens (creator):", bal);
 
-  // ACHATS EN PARALLÈLE
-  await Promise.all(
-    buyers.map(async (buyer, i) => {
-      const amount = BigInt(Math.floor(BUY_AMOUNTS_SOL[i + 1] * LAMPORTS_PER_SOL));
-      try {
-        await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
-        console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
-      } catch (e) {
-        console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
-      }
-    })
-  );
+  for (let i = 0; i < buyers.length; i++) {
+    const buyer = buyers[i];
+    const amount = BigInt(Math.floor(BUY_AMOUNTS_SOL[i + 1] * LAMPORTS_PER_SOL));
+    try {
+      await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
+      console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
+    } catch (e) {
+      console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
+    }
+    await delay(150); // 150ms delay entre chaque achat
+  }
 
   async function trendingLoop() {
     const start = Date.now();
