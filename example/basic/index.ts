@@ -6,25 +6,29 @@ import { PumpFunSDK } from "pumpdotfun-repumped-sdk";
 import { getSPLBalance, printSOLBalance } from "../util.ts";
 
 const RPC_URL = process.env.HELIUS_RPC_URL!;
-const SLIPPAGE_BPS = 300n;
-const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
-const LOGO_PATH = "./example/basic/cn.png";
-const TOKEN_NAME = "$CHN";
-const TOKEN_SYMBOL = "CHN";
-const TOKEN_DESC = `China steps onto the field! 🇨🇳
-🐉 A billion voices strong, the dragon rises.
-Will $CHN lead the charge and dominate the Memecup?
-🚀 Power, strategy, and endless ambition fuel this nation.
-Join the rally, support the dragon, and rise together!
+const SLIPPAGE_BPS = 350n;
+const PRIORITY_FEE = { unitLimit: 350_000, unitPrice: 400_000 };
+const LOGO_PATH = "./example/basic/br.png";
+const TOKEN_NAME = "$BRA";
+const TOKEN_SYMBOL = "BRA";
+
+// Description complète Brésil
+const TOKEN_DESC = `Brazil brings the heat! 🇧🇷
+
+⚽️ From the beaches of Copacabana to the heart of the Amazon, Brazil is a land of champions, rhythm, and unstoppable energy.
+💃 Samba, football, and a carnival spirit — can $BRA score big in the Memecup?
+🔥 The Selecao is in! Join the green and yellow, bring the party, pump for Brazil!
+
+Join the celebration, bring the color, pump for Brazil!
 🏆 https://memecup.ovh  
 💬 Telegram: https://t.me/memecup44  
 🔗 X: https://x.com/memecupofficial`;
 
 const TRENDING_INTERVAL_MS = 60_000;
-const TRENDING_AMOUNT_SOL = 0.001;
-const MAX_TRENDING_SOL = 0.005;
+const TRENDING_AMOUNT_SOL = 0.003;
+const MAX_TRENDING_SOL = 0.006;
 const MAX_TRENDING_MINUTES = 0;
-const BUY_AMOUNTS_SOL = [0.3, 0.14, 0.125, 0.115, 0.11, 0.105, 0.105];
+const BUY_AMOUNTS_SOL = [0.305, 0.143, 0.126, 0.118, 0.112, 0.108, 0.106];
 
 function loadWallet(envVar: string, label: string): Keypair | null {
   try {
@@ -96,16 +100,18 @@ async function main() {
   const bal = await getSPLBalance(connection, mint.publicKey, creator.publicKey);
   console.log("🎯 Balance tokens (creator):", bal);
 
-  for (let i = 0; i < buyers.length; i++) {
-    const buyer = buyers[i];
-    const amount = BigInt(Math.floor(BUY_AMOUNTS_SOL[i + 1] * LAMPORTS_PER_SOL));
-    try {
-      await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
-      console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
-    } catch (e) {
-      console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
-    }
-  }
+  // ACHATS EN PARALLÈLE
+  await Promise.all(
+    buyers.map(async (buyer, i) => {
+      const amount = BigInt(Math.floor(BUY_AMOUNTS_SOL[i + 1] * LAMPORTS_PER_SOL));
+      try {
+        await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
+        console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
+      } catch (e) {
+        console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
+      }
+    })
+  );
 
   async function trendingLoop() {
     const start = Date.now();
