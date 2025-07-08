@@ -1,14 +1,15 @@
-import "dotenv/config";
+import "dotenv/config"; 
 import fs from "fs";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import { PumpFunSDK } from "pumpdotfun-repumped-sdk";
+import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
 import { getSPLBalance, printSOLBalance } from "../util.ts";
 
 const RPC_URL = process.env.HELIUS_RPC_URL!;
 const SLIPPAGE_BPS = 300n;
 const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
-const LOGO_PATH = "./example/basic/jp.png";
+
+const LOGO_PATH = "./example/basic/jpn.png";
 const TOKEN_NAME = "$JPN";
 const TOKEN_SYMBOL = "JPN";
 const TOKEN_DESC = `Japan joins the Memecup! 🇯🇵
@@ -20,8 +21,8 @@ Grab your fans 🎎, ride the wave, and let's honor the red sun with power!
 🔗 X: https://x.com/memecupofficial`;
 
 const TRENDING_INTERVAL_MS = 60_000;
-const TRENDING_AMOUNT_SOL = 0.001;
-const MAX_TRENDING_SOL = 0.0;
+const TRENDING_AMOUNT_SOL = 0.005;
+const MAX_TRENDING_SOL = 0.005;
 const MAX_TRENDING_MINUTES = 0;
 const BUY_AMOUNTS_SOL = [0.4, 0.14, 0.125, 0.115, 0.11, 0.105, 0.105];
 
@@ -44,7 +45,7 @@ async function delay(ms: number) {
 }
 
 async function main() {
-  console.log("========= DEMARRAGE SCRIPT =========");
+  console.log("========= DEMARRAGE SCRIPT JPN =========");
   const connection = new Connection(RPC_URL, "confirmed");
 
   const creator = loadWallet("PRIVATE_KEY_CREATOR", "creator");
@@ -102,8 +103,9 @@ async function main() {
       await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
       console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
     } catch (e) {
-      console.error(`⛔ Buy ${i + 2} erreur:", e.message || e);
+      console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
     }
+    await delay(150);
   }
 
   async function trendingLoop() {
