@@ -2,26 +2,26 @@ import "dotenv/config";
 import fs from "fs";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
+import { PumpFunSDK } from "pumpdotfun-repumped-sdk";
 import { getSPLBalance, printSOLBalance } from "../util.ts";
 
 const RPC_URL = process.env.HELIUS_RPC_URL!;
 const SLIPPAGE_BPS = 300n;
 const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
-const LOGO_PATH = "./example/basic/kor.png";
-const TOKEN_NAME = "$KOR";
-const TOKEN_SYMBOL = "KOR";
-const TOKEN_DESC = `South Korea joins the Memecup! 🇰🇷✨  
-🏯 Palaces, tech power, and K-pop fever — $KOR is here to dazzle the charts.  
-Can the land of morning calm create a memequake?  
-Join the crowd, wave your lightsticks, and let’s pump with precision!  
+const LOGO_PATH = "./example/basic/jp.png";
+const TOKEN_NAME = "$JPN";
+const TOKEN_SYMBOL = "JPN";
+const TOKEN_DESC = `Japan joins the Memecup! 🇯🇵
+From Mount Fuji to meme glory — $JPN is sharp, swift, and unstoppable.  
+🥷 Precision, tradition, innovation — Japan blends it all in the race to the top.  
+Grab your fans 🎎, ride the wave, and let's honor the red sun with power!  
 🏆 https://memecup.ovh  
 💬 Telegram: https://t.me/memecup44  
 🔗 X: https://x.com/memecupofficial`;
 
 const TRENDING_INTERVAL_MS = 60_000;
 const TRENDING_AMOUNT_SOL = 0.001;
-const MAX_TRENDING_SOL = 0.005;
+const MAX_TRENDING_SOL = 0.0;
 const MAX_TRENDING_MINUTES = 0;
 const BUY_AMOUNTS_SOL = [0.4, 0.14, 0.125, 0.115, 0.11, 0.105, 0.105];
 
@@ -102,7 +102,7 @@ async function main() {
       await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
       console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
     } catch (e) {
-      console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
+      console.error(`⛔ Buy ${i + 2} erreur:", e.message || e);
     }
   }
 
@@ -127,4 +127,3 @@ async function main() {
 }
 
 main().catch(console.error);
-
