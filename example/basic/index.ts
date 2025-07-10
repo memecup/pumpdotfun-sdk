@@ -9,15 +9,15 @@ const RPC_URL = process.env.HELIUS_RPC_URL!;
 const SLIPPAGE_BPS = 300n;
 const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
 
-const LOGO_PATH = "./example/basic/esp.png";
-const TOKEN_NAME = "$ESP";
-const TOKEN_SYMBOL = "ESP";
-const TOKEN_DESC = `Spain storms into the Memecup! 🐂💃
-From the roar of the bullrings to the rhythm of flamenco, $ESP brings pure passion.
-Can the red and yellow charge to the top with style and spirit?
-Clap to the beat, shout ¡Olé!, and let the charts erupt!
-🏆 https://memecup.ovh
-💬 Telegram: https://t.me/memecup44
+const LOGO_PATH = "./example/basic/sui.png";
+const TOKEN_NAME = "$CHE";
+const TOKEN_SYMBOL = "CHE";
+const TOKEN_DESC = `Switzerland joins the Memecup! 🇨🇭⛰️  
+Precision, neutrality, and meme-finance excellence.  
+Can $CHE scale the peaks and become a vault of value? 🧀🔒  
+Wave the red flag with pride, and let the Alps echo with pumps!  
+🏆 https://memecup.ovh  
+💬 Telegram: https://t.me/memecup44  
 🔗 X: https://x.com/memecupofficial`;
 
 const BUY_AMOUNT_SOL = 0.4;
@@ -37,7 +37,7 @@ function loadWallet(envVar: string, label: string): Keypair | null {
 }
 
 async function main() {
-  console.log("========= DEMARRAGE SCRIPT ESP (CREATOR ONLY) =========");
+  console.log("========= DEMARRAGE SCRIPT CHE (CREATOR ONLY) =========");
   const connection = new Connection(RPC_URL, "confirmed");
 
   const creator = loadWallet("PRIVATE_KEY_CREATOR", "creator");
