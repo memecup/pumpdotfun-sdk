@@ -1,30 +1,26 @@
-import "dotenv/config"; 
+import "dotenv/config";
 import fs from "fs";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import { PumpFunSDK, DEFAULT_DECIMALS } from "pumpdotfun-repumped-sdk";
+import { PumpFunSDK } from "pumpdotfun-repumped-sdk";
 import { getSPLBalance, printSOLBalance } from "../util.ts";
 
 const RPC_URL = process.env.HELIUS_RPC_URL!;
 const SLIPPAGE_BPS = 300n;
 const PRIORITY_FEE = { unitLimit: 250_000, unitPrice: 250_000 };
 
-const LOGO_PATH = "./example/basic/jpn.png";
-const TOKEN_NAME = "$JPN";
-const TOKEN_SYMBOL = "JPN";
-const TOKEN_DESC = `Japan joins the Memecup! 🇯🇵
-From Mount Fuji to meme glory — $JPN is sharp, swift, and unstoppable.  
-🥷 Precision, tradition, innovation — Japan blends it all in the race to the top.  
-Grab your fans 🎎, ride the wave, and let's honor the red sun with power!  
+const LOGO_PATH = "./example/basic/ger.png";
+const TOKEN_NAME = "$GER";
+const TOKEN_SYMBOL = "GER";
+const TOKEN_DESC = `Germany enters the Memecup! ⚙️🇩🇪  
+Precision, strength, and meme efficiency — $GER is ready to dominate.  
+Will the black, red, and gold rise to the top?  
+Rally your squad, ignite the charts, pump with discipline!  
 🏆 https://memecup.ovh  
 💬 Telegram: https://t.me/memecup44  
 🔗 X: https://x.com/memecupofficial`;
 
-const TRENDING_INTERVAL_MS = 60_000;
-const TRENDING_AMOUNT_SOL = 0.005;
-const MAX_TRENDING_SOL = 0.005;
-const MAX_TRENDING_MINUTES = 0;
-const BUY_AMOUNTS_SOL = [0.4, 0.14, 0.125, 0.115, 0.11, 0.105, 0.105];
+const BUY_AMOUNT_SOL = 0.4;
 
 function loadWallet(envVar: string, label: string): Keypair | null {
   try {
@@ -40,22 +36,13 @@ function loadWallet(envVar: string, label: string): Keypair | null {
   }
 }
 
-async function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function main() {
-  console.log("========= DEMARRAGE SCRIPT JPN =========");
+  console.log("========= DEMARRAGE SCRIPT GER (CREATOR ONLY) =========");
   const connection = new Connection(RPC_URL, "confirmed");
 
   const creator = loadWallet("PRIVATE_KEY_CREATOR", "creator");
-  const trending = loadWallet("PRIVATE_KEY_TRENDING", "trending");
-  const buyers = [2, 3, 4, 5, 6, 7]
-    .map((i) => loadWallet(`PRIVATE_KEY_BUYER${i}`, `buyer${i}`))
-    .filter(Boolean) as Keypair[];
-
-  if (!creator || !trending) {
-    console.error("❌ Wallet creator ou trending invalide. Arrêt.");
+  if (!creator) {
+    console.error("❌ Wallet creator invalide. Arrêt.");
     return;
   }
 
@@ -83,7 +70,7 @@ async function main() {
   };
 
   const mint = Keypair.generate();
-  const firstBuyLamports = BigInt(Math.floor(BUY_AMOUNTS_SOL[0] * LAMPORTS_PER_SOL));
+  const firstBuyLamports = BigInt(Math.floor(BUY_AMOUNT_SOL * LAMPORTS_PER_SOL));
   console.log("[2] Lancement du mint...");
   const res = await sdk.trade.createAndBuy(creator, mint, meta, firstBuyLamports, SLIPPAGE_BPS, PRIORITY_FEE);
 
@@ -95,37 +82,6 @@ async function main() {
   console.log("🚀 Mint + Buy OK:", `https://pump.fun/${mint.publicKey.toBase58()}`);
   const bal = await getSPLBalance(connection, mint.publicKey, creator.publicKey);
   console.log("🎯 Balance tokens (creator):", bal);
-
-  for (let i = 0; i < buyers.length; i++) {
-    const buyer = buyers[i];
-    const amount = BigInt(Math.floor(BUY_AMOUNTS_SOL[i + 1] * LAMPORTS_PER_SOL));
-    try {
-      await sdk.trade.buy(buyer, mint.publicKey, amount, SLIPPAGE_BPS, PRIORITY_FEE);
-      console.log(`💸 Buy ${i + 2} OK from ${buyer.publicKey.toBase58()}`);
-    } catch (e) {
-      console.error(`⛔ Buy ${i + 2} erreur:`, e.message || e);
-    }
-    await delay(150);
-  }
-
-  async function trendingLoop() {
-    const start = Date.now();
-    const durationMs = MAX_TRENDING_MINUTES * 60_000;
-    while (Date.now() - start < durationMs) {
-      const amount = Math.min(TRENDING_AMOUNT_SOL, MAX_TRENDING_SOL);
-      try {
-        const lamports = BigInt(Math.floor(amount * LAMPORTS_PER_SOL));
-        await sdk.trade.buy(trending, mint.publicKey, lamports, SLIPPAGE_BPS, PRIORITY_FEE);
-        console.log(`🔥 Trending buy @${amount} SOL from ${trending.publicKey.toBase58()}`);
-      } catch (e) {
-        console.error("⛔ Trending buy failed:", e.message || e);
-      }
-      await delay(TRENDING_INTERVAL_MS);
-    }
-    console.log(`⏹️ Trending terminé après ${MAX_TRENDING_MINUTES} minute(s).`);
-  }
-
-  await trendingLoop();
 }
 
 main().catch(console.error);
